@@ -25,6 +25,7 @@ import {
   Legend,
 } from 'recharts';
 import { ClassBadge } from '../components/ClassBadge';
+import { PositionBadge } from '../components/PositionBadge';
 import { DataCardHeader } from '../components/DataCardHeader';
 import { FilterButtonGroup } from '../components/FilterButtonGroup';
 import { SortableTable, type Column } from '../components/SortableTable';
@@ -34,6 +35,7 @@ import {
   getSafetyAndRatingStats,
   isOnline,
   isRatedRace,
+  isIncompleteRace,
 } from '../lib/analytics';
 import type {
   RaceCollisionDetail,
@@ -190,10 +192,11 @@ export const SafetyRatingView = memo(function SafetyRatingView({ files, driverNa
       render: r => (
         <div className="text-center">
           <div className="flex items-center justify-center gap-1">
-            <span className={`font-bold ${r.classPosition === 1 ? 'text-racing-gold' : r.classPosition <= 3 ? 'text-racing-orange' : 'text-white'}`}>
-              P{r.classPosition}
-            </span>
-            <span className="text-racing-muted text-[10px]">/{r.classDrivers}</span>
+            <PositionBadge
+              position={r.classPosition}
+              total={r.classDrivers}
+              isProvisional={isIncompleteRace(r.session)}
+            />
           </div>
           {r.positionGain !== null && (
             <span className={`text-[10px] font-bold flex items-center justify-center gap-0.5 ${r.positionGain > 0 ? 'text-racing-green' : r.positionGain < 0 ? 'text-racing-red' : 'text-racing-muted'}`}>

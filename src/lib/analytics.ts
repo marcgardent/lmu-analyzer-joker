@@ -12,6 +12,12 @@ export function isDnf(finishStatus: string): boolean {
   return finishStatus !== '' && finishStatus !== 'Finished Normally' && finishStatus !== 'None';
 }
 
+/** True when a Race session XML was saved before the race ended (early exit / in-progress snapshot) */
+export function isIncompleteRace(session: SessionData): boolean {
+  if (session.type !== 'Race') return false;
+  return !session.drivers.some(d => d.finishStatus === 'Finished Normally' || (d.finishTime !== null && d.finishTime > 0));
+}
+
 /** True when a lap has a usable lap time (matches the `lapTime && lapTime > 0` convention) */
 export function isValidLap(lap: LapData): lap is LapData & { lapTime: number } {
   return lap.lapTime !== null && lap.lapTime > 0;

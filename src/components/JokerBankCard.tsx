@@ -2,6 +2,8 @@ import { memo } from 'react';
 import { Sparkles, ArrowRight, Lock, Flame } from 'lucide-react';
 import type { JokerProgression, RaceCollisionDetail } from '../lib/types';
 import { trackLabel } from '../lib/racepace';
+import { isIncompleteRace } from '../lib/analytics';
+import { formatPosition } from '../lib/formatting';
 
 interface JokerBankCardProps {
   progression: JokerProgression;
@@ -193,7 +195,7 @@ export const JokerBankCard = memo(function JokerBankCard({
                   </span>
                 </div>
                 <p className="text-[11px] text-racing-muted mt-0.5">
-                  {topCandidate.file.timeString} &middot; Finished P{topCandidate.classPosition}/{topCandidate.classDrivers}
+                  {topCandidate.file.timeString} &middot; Finished {formatPosition(topCandidate.classPosition, isIncompleteRace(topCandidate.session))}/{topCandidate.classDrivers}
                   {topCandidate.rrDelta < 0 && ` · Lost ${Math.abs(topCandidate.rrDelta)} RR`}
                   {topCandidate.isDnf && ' · DNF Recorded'}
                   {topCandidate.totalIncidents > 0 && ` · ${topCandidate.totalIncidents} contacts`}

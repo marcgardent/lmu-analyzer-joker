@@ -1,11 +1,12 @@
 import { useMemo, useState, memo } from 'react';
 import { ClassBadge } from '../components/ClassBadge';
+import { PositionBadge } from '../components/PositionBadge';
 import { DataCardHeader } from '../components/DataCardHeader';
 import { FilterButtonGroup } from '../components/FilterButtonGroup';
 import { SearchableSelect } from '../components/SearchableSelect';
 import { SortableTable, type Column } from '../components/SortableTable';
 import { ExportButton } from '../components/ExportButton';
-import { isOnline, isRatedRace, calculateConsistency, getTopSpeed } from '../lib/analytics';
+import { isOnline, isRatedRace, calculateConsistency, getTopSpeed, isIncompleteRace } from '../lib/analytics';
 import { trackOption, trackLabel } from '../lib/racepace';
 import { formatLapTime, formatSpeed, getConsistencyColor, getSessionTypeStyle } from '../lib/formatting';
 import { buildSessionContext } from '../lib/sessionContext';
@@ -44,13 +45,26 @@ export const SessionsView = memo(function SessionsView({ onNavigate }: SessionsV
     .sort((a, b) => (b.session.dateTime || b.file.timeString).localeCompare(a.session.dateTime || a.file.timeString)), [allSessions, filterSetting, filterType, filterTrack]);
 
   const columns: Column<SessionRow>[] = useMemo(() => [
-    { key: 'type', label: 'Type', width: '95px',
+    { key: 'type', label: 'Type', width: '105px',
       sortValue: r => r.session.type,
-      render: r => (
-        <span className={`inline-flex px-2 py-0.5 rounded text-xs font-bold ${getSessionTypeStyle(r.session.type)}`}>
-          {r.session.type}
-        </span>
-      ),
+      render: r => {
+        const incomplete = isIncompleteRace(r.session);
+        return (
+          <div className="flex flex-col gap-0.5 items-start">
+            <span className={`inline-flex px-2 py-0.5 rounded text-xs font-bold ${getSessionTypeStyle(r.session.type)}`}>
+              {r.session.type}
+            </span>
+            {incomplete && (
+              <span
+                className="text-[9px] px-1 py-0.2 rounded font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30"
+                title="Data collection was interrupted before race completion — standings are provisional."
+              >
+                Provisional
+              </span>
+            )}
+          </div>
+        );
+      },
     },
     { key: 'track', label: 'Track', width: '25%',
       sortValue: r => r.file.trackCourse,
@@ -83,7 +97,7 @@ export const SessionsView = memo(function SessionsView({ onNavigate }: SessionsV
     { key: 'pos', label: 'Pos', align: 'right', width: '45px',
       sortValue: r => r.session.type === 'Race' ? r.driver.classPosition : Infinity,
       render: r => r.session.type === 'Race'
-        ? <span className="text-racing-gold text-xs font-bold">P{r.driver.classPosition}</span>
+        ? <PositionBadge position={r.driver.classPosition} isProvisional={isIncompleteRace(r.session)} colorClass="text-racing-gold text-xs font-bold" />
         : null,
     },
     { key: 'gain', label: 'Gain', align: 'right', width: '50px',

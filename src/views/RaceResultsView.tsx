@@ -2,6 +2,7 @@ import { useState, useMemo, memo } from 'react';
 import { Trophy, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { ClassBadge } from '../components/ClassBadge';
+import { PositionBadge } from '../components/PositionBadge';
 import { DataCardHeader } from '../components/DataCardHeader';
 import { FilterButtonGroup } from '../components/FilterButtonGroup';
 import { SortableTable, type Column } from '../components/SortableTable';
@@ -12,6 +13,7 @@ import { JokerBankCard } from '../components/JokerBankCard';
 import {
   getRaceResults,
   isDnf,
+  isIncompleteRace,
   isOnline,
   isRatedRace,
   isDriverIncident,
@@ -205,12 +207,11 @@ export const RaceResultsView = memo(function RaceResultsView({ files, driverName
       width: '70px',
       sortValue: r => r.classPosition,
       render: r => (
-        <>
-          <span className={`font-bold ${r.classPosition === 1 ? 'text-racing-gold' : r.classPosition <= 3 ? 'text-racing-orange' : 'text-white'}`}>
-            P{r.classPosition}
-          </span>
-          <span className="text-racing-muted text-xs">/{r.classDrivers}</span>
-        </>
+        <PositionBadge
+          position={r.classPosition}
+          total={r.classDrivers}
+          isProvisional={isIncompleteRace(r.session)}
+        />
       ),
     },
     {

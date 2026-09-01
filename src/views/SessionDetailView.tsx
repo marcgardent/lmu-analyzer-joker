@@ -7,7 +7,7 @@ import { SortableTable, type Column } from '../components/SortableTable';
 import { ExportButton } from '../components/ExportButton';
 import { SessionLink } from '../components/SessionLink';
 import { trackLabel } from '../lib/racepace';
-import { getTireWearPerLap, getTopSpeed, isDnf, isDriverIncident, isOnline, isRatedRace, isValidLap, lapTimeStats, computeRRDelta, computeSRImpact, MAX_INT32_SENTINEL } from '../lib/analytics';
+import { getTireWearPerLap, getTopSpeed, isDnf, isIncompleteRace, isDriverIncident, isOnline, isRatedRace, isValidLap, lapTimeStats, computeRRDelta, computeSRImpact, MAX_INT32_SENTINEL } from '../lib/analytics';
 import { formatLapTime, formatSector, formatSpeed, formatEventTime, getChartTooltipStyle, getConsistencyColor, getSessionTypeStyle, CHART_AXIS_TICK, CHART_GRID_STROKE } from '../lib/formatting';
 import { JokerImpactBadge } from '../components/JokerImpactBadge';
 import { computeRaceJokerImpact } from '../lib/joker';
@@ -110,6 +110,14 @@ export const SessionDetailView = memo(function SessionDetailView({ file, session
             <span className={`px-2.5 py-1 rounded text-xs font-bold ${getSessionTypeStyle(session.type)}`}>
               {session.type}
             </span>
+            {isIncompleteRace(session) && (
+              <span
+                className="px-2.5 py-1 rounded text-xs font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30"
+                title="Data collection was interrupted before race completion — standings are provisional."
+              >
+                Provisional Standings
+              </span>
+            )}
             <h1 className="font-racing text-lg font-bold text-white tracking-wider truncate">{trackLabel(file.trackCourse)}</h1>
             <ClassBadge carClass={driver.carClass} />
           </div>
@@ -243,8 +251,16 @@ function DriverSessionCards({ file, session, driver, stats }: {
             <InfoRow label="Pitstops" value={String(driver.pitstops)} />
             {session.type === 'Race' && (
               <>
-                <InfoRow label="Position" value={`P${driver.position} / ${session.drivers.length}`} valueClass="text-racing-gold font-bold" />
-                <InfoRow label="Class Pos" value={`P${driver.classPosition}`} valueClass="text-racing-gold font-bold" />
+                <InfoRow
+                  label="Position"
+                  value={`P${driver.position}${isIncompleteRace(session) ? '?' : ''} / ${session.drivers.length}`}
+                  valueClass="text-racing-gold font-bold"
+                />
+                <InfoRow
+                  label="Class Pos"
+                  value={`P${driver.classPosition}${isIncompleteRace(session) ? '?' : ''}`}
+                  valueClass="text-racing-gold font-bold"
+                />
                 {driver.gridPosition && (
                   <InfoRow label="Grid" value={`P${driver.gridPosition}`} />
                 )}
@@ -325,8 +341,18 @@ function StandingsTab({ file, session, driver, standings, onNavigate }: {
   const driverIdx = standings.findIndex(d => d.name === driver.name);
 
   const standingsColumns: Column<StandingRow>[] = useMemo(() => [
-    { key: 'pos', label: 'Pos', width: '50px', sortValue: r => session.type === 'Race' ? r.position : (r.bestLapTime ?? Infinity),
-      render: (_r: DriverResult, i: number) => <span className={`font-bold ${i === 0 ? 'text-racing-gold' : i <= 2 ? 'text-racing-orange' : 'text-racing-muted'}`}>{i + 1}</span> },
+    { key: 'pos', label: 'Pos', width: '65px', sortValue: r => session.type === 'Race' ? r.position : (r.bestLapTime ?? Infinity),
+      render: (_r: DriverResult, i: number) => {
+        const isProvisional = isIncompleteRace(session);
+        return (
+          <span
+            className={`font-bold ${i === 0 ? 'text-racing-gold' : i <= 2 ? 'text-racing-orange' : 'text-racing-muted'}`}
+            title={isProvisional ? 'Provisional standing — data collection was interrupted before race completion' : undefined}
+          >
+            {i + 1}{isProvisional ? '?' : ''}
+          </span>
+        );
+      } },
     { key: 'name', label: 'Driver', width: '15%', sortValue: r => r.name,
       render: r => {
         const cls = `truncate block text-left ${r.name === driver.name ? 'text-racing-green font-bold' : 'text-white'}`;
@@ -359,10 +385,10 @@ function StandingsTab({ file, session, driver, standings, onNavigate }: {
 
   return (
     <div className="data-card carbon-fiber overflow-hidden">
-      <DataCardHeader title={session.type === 'Race' ? 'RACE STANDINGS' : 'SESSION STANDINGS'}>
+      <DataCardHeader title={session.type === 'Race' ? (isIncompleteRace(session) ? 'PROVISIONAL RACE STANDINGS' : 'RACE STANDINGS') : 'SESSION STANDINGS'}>
         <span className="ml-auto text-[10px] font-mono text-racing-muted/50">
           {session.drivers.length} drivers
-          {driverIdx >= 0 && ` · You: P${driverIdx + 1}`}
+          {driverIdx >= 0 && ` · You: P${driverIdx + 1}${isIncompleteRace(session) ? '?' : ''}`}
         </span>
         <ExportButton columns={standingsColumns} data={standings} filename={`lmu-standings-${file.trackCourse}-${session.type}`} />
       </DataCardHeader>

@@ -13,6 +13,11 @@ export function formatDelta(delta: number): string {
   return `${sign}${Math.abs(delta).toFixed(3)}`;
 }
 
+export function formatPosition(pos: number | null | undefined, isProvisional = false): string {
+  if (pos === null || pos === undefined || pos <= 0) return '--';
+  return `P${pos}${isProvisional ? '?' : ''}`;
+}
+
 export function formatEventTime(seconds: number): string {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
