@@ -11,6 +11,7 @@ import { TracksView } from './views/TracksView';
 import { TrackModeView } from './views/TrackModeView';
 import { CarsView } from './views/CarsView';
 import { RaceResultsView } from './views/RaceResultsView';
+import { SafetyRatingView } from './views/SafetyRatingView';
 import { DriverProfileView } from './views/DriverProfileView';
 import { RacePaceView } from './views/RacePaceView';
 import { AboutView } from './views/AboutView';
@@ -414,6 +415,7 @@ function App() {
             {activeView === 'benchmarks' && <RacePaceView files={filteredFiles} driverNames={selectedDrivers} onNavigate={navigateTo} onViewChange={setActiveView} />}
             {activeView === 'trackmode' && <TrackModeView files={filteredFiles} driverNames={selectedDrivers} initialTrack={viewContext} onNavigate={navigateTo} onViewChange={setActiveView} />}
             {activeView === 'races' && <RaceResultsView files={filteredFiles} driverNames={selectedDrivers} onNavigate={navigateTo} />}
+            {activeView === 'safety' && <SafetyRatingView files={filteredFiles} driverNames={selectedDrivers} onNavigate={navigateTo} />}
             {activeView === 'profile' && <DriverProfileView files={filteredFiles} driverNames={selectedDrivers} />}
           </DataIndexProvider>
         )}

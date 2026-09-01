@@ -30,6 +30,7 @@ const VIEWS = [
   { id: 'tracks', label: 'Tracks' },
   { id: 'cars', label: 'Cars' },
   { id: 'races', label: 'Race Results' },
+  { id: 'safety', label: 'Safety & Ratings' },
   { id: 'profile', label: 'Driver Profile' },
   { id: 'benchmarks', label: 'Benchmark Times' },
   { id: 'about', label: 'About' },

@@ -1,4 +1,7 @@
-import type { RaceFile, PersonalBest, DriverSummary, DriverResult, LapData, SessionData, CarClass } from './types';
+import type {
+  RaceFile, PersonalBest, DriverSummary, DriverResult, LapData, SessionData, CarClass,
+  RaceCollisionDetail, SafetySummaryStats, CollisionOpponent, TrackSafetyStat,
+} from './types';
 
 /** Car classes ordered by speed (fastest first) */
 export const CLASS_SPEED_ORDER: CarClass[] = ['Hyper', 'LMP2-WEC', 'LMP2-ELMS', 'LMP3', 'GTE', 'GT3'];
@@ -872,3 +875,309 @@ function buildTrackBests(
   trackBests.sort((a, b) => a.trackCourse.localeCompare(b.trackCourse));
   return trackBests;
 }
+
+// ---------------------------------------------------------------------------
+// Safety, Collision & Rating Analytics (SR & RR)
+// ---------------------------------------------------------------------------
+
+export function extractOpponentName(incident: { driver1: string; description: string }, nameSet: Set<string>): string | null {
+  const text = incident.description || '';
+  if (!text.includes('with another vehicle')) return null;
+
+  const d1 = incident.driver1 || text.split('(')[0].trim();
+  if (nameSet.has(d1) || [...nameSet].some(n => text.startsWith(n))) {
+    const oppPart = text.split('with another vehicle')[1]?.trim();
+    return oppPart?.replace(/\(\d+\)$/, '').trim() || null;
+  }
+
+  const firstPart = text.split('reported contact')[0]?.trim();
+  return firstPart?.replace(/\(\d+\)$/, '').trim() || null;
+}
+
+export function computeSRImpact(
+  totalIncidents: number,
+  vehicleContacts: number,
+  wallContacts: number,
+  penaltiesCount: number,
+  lapsCompleted: number,
+  isDnf: boolean,
+  totalSeverity: number
+): { srImpact: number; srGrade: 'A+' | 'A' | 'B' | 'C' | 'D' | 'F' } {
+  if (lapsCompleted === 0 && !isDnf) {
+    return { srImpact: 0, srGrade: 'C' };
+  }
+
+  // Base gain for clean laps completed
+  const cleanLapBonus = Math.min(0.22, lapsCompleted * 0.015);
+
+  // Incident deductions
+  const vehiclePenalty = vehicleContacts * 0.035;
+  const wallPenalty = wallContacts * 0.02;
+  const otherPenalty = Math.max(0, totalIncidents - vehicleContacts - wallContacts) * 0.015;
+  const penaltyDeduction = penaltiesCount * 0.06;
+  const severityDeduction = Math.min(0.15, (totalSeverity / 10000) * 0.03);
+  const dnfDeduction = isDnf ? 0.12 : 0;
+
+  const rawDelta = cleanLapBonus - (vehiclePenalty + wallPenalty + otherPenalty + penaltyDeduction + severityDeduction + dnfDeduction);
+  const srImpact = Number(Math.max(-0.50, Math.min(0.30, rawDelta)).toFixed(2));
+
+  let srGrade: 'A+' | 'A' | 'B' | 'C' | 'D' | 'F' = 'C';
+  if (totalIncidents === 0 && penaltiesCount === 0 && !isDnf && lapsCompleted > 0) {
+    srGrade = 'A+';
+  } else if (srImpact >= 0.08) {
+    srGrade = 'A';
+  } else if (srImpact >= 0.00) {
+    srGrade = 'B';
+  } else if (srImpact >= -0.15) {
+    srGrade = 'C';
+  } else if (srImpact >= -0.30) {
+    srGrade = 'D';
+  } else {
+    srGrade = 'F';
+  }
+
+  return { srImpact, srGrade };
+}
+
+export function computeRRDelta(
+  classPosition: number,
+  classDrivers: number,
+  classGridPosition: number | null,
+  isDnf: boolean
+): number {
+  if (classDrivers <= 1) return isDnf ? -20 : 15;
+
+  const percentile = (classDrivers - classPosition) / (classDrivers - 1);
+  let delta = (percentile - 0.5) * 70;
+
+  if (classPosition === 1) delta += 25;
+  else if (classPosition === 2) delta += 15;
+  else if (classPosition === 3) delta += 10;
+  else if (classPosition <= 5 && classDrivers >= 8) delta += 5;
+
+  if (classGridPosition !== null && classGridPosition > 0) {
+    const gain = classGridPosition - classPosition;
+    delta += Math.max(-15, Math.min(15, gain * 2.5));
+  }
+
+  if (isDnf) delta -= 30;
+
+  const fieldScale = Math.min(1.25, Math.max(0.75, classDrivers / 10));
+  return Math.round(delta * fieldScale);
+}
+
+export function getSafetyAndRatingStats(
+  files: RaceFile[],
+  driverNames: string | string[]
+): SafetySummaryStats & { raceDetails: RaceCollisionDetail[] } {
+  const nameSet = toNameSet(driverNames);
+  const raceDetails: RaceCollisionDetail[] = [];
+
+  let totalRaces = 0;
+  let cleanRaces = 0;
+  let totalIncidentsSum = 0;
+  let totalVehiclesSum = 0;
+  let totalWallsSum = 0;
+  let totalSeveritySum = 0;
+  let totalPenaltiesSum = 0;
+  let totalTrackLimitsSum = 0;
+  let totalLapsSum = 0;
+
+  const opponentMap = new Map<string, { count: number; severity: number; raceSet: Set<string> }>();
+  const trackMap = new Map<string, { trackVenue: string; racesCount: number; incidents: number; vehicle: number; wall: number; severity: number }>();
+
+  for (const { file, session, driver } of forEachDriverSession(files, nameSet)) {
+    if (session.type !== 'Race') continue;
+
+    totalRaces++;
+    totalLapsSum += driver.totalLaps;
+
+    // Filter incidents for this driver
+    const driverIncidents = session.incidents.filter(i => isDriverIncident(i, driver.name));
+    const driverPenalties = session.penalties.filter(p => p.driver === driver.name);
+    const driverTL = session.trackLimits.filter(tl => tl.driver === driver.name);
+
+    let vehicleContacts = 0;
+    let wallContacts = 0;
+    let otherContacts = 0;
+    let raceSeverity = 0;
+    const raceOpponentsMap = new Map<string, { count: number; severity: number }>();
+
+    for (const inc of driverIncidents) {
+      raceSeverity += inc.severity;
+      const text = inc.description.toLowerCase();
+
+      if (text.includes('with another vehicle')) {
+        vehicleContacts++;
+        const oppName = extractOpponentName(inc, nameSet);
+        if (oppName) {
+          const prevOpp = raceOpponentsMap.get(oppName) ?? { count: 0, severity: 0 };
+          prevOpp.count++;
+          prevOpp.severity += inc.severity;
+          raceOpponentsMap.set(oppName, prevOpp);
+
+          const globalOpp = opponentMap.get(oppName) ?? { count: 0, severity: 0, raceSet: new Set<string>() };
+          globalOpp.count++;
+          globalOpp.severity += inc.severity;
+          globalOpp.raceSet.add(file.fileName);
+          opponentMap.set(oppName, globalOpp);
+        }
+      } else if (text.includes('immovable') || text.includes('wall') || text.includes('post') || text.includes('guardrail') || text.includes('fence') || text.includes('tire') || text.includes('barrier')) {
+        wallContacts++;
+      } else {
+        otherContacts++;
+      }
+    }
+
+    const dnf = isDnf(driver.finishStatus);
+    const classDrivers = session.drivers.filter(d => d.carClass === driver.carClass).length;
+    const { srImpact, srGrade } = computeSRImpact(
+      driverIncidents.length,
+      vehicleContacts,
+      wallContacts,
+      driverPenalties.length,
+      driver.totalLaps,
+      dnf,
+      raceSeverity
+    );
+
+    const rrDelta = computeRRDelta(
+      driver.classPosition,
+      classDrivers,
+      driver.classGridPosition,
+      dnf
+    );
+
+    const positionGain = driver.classGridPosition !== null ? driver.classGridPosition - driver.classPosition : null;
+
+    if (driverIncidents.length === 0 && driverPenalties.length === 0 && !dnf && driver.totalLaps > 0) {
+      cleanRaces++;
+    }
+
+    totalIncidentsSum += driverIncidents.length;
+    totalVehiclesSum += vehicleContacts;
+    totalWallsSum += wallContacts;
+    totalSeveritySum += raceSeverity;
+    totalPenaltiesSum += driverPenalties.length;
+    totalTrackLimitsSum += driverTL.length;
+
+    // Track safety aggregation
+    const trackEntry = trackMap.get(file.trackCourse) ?? {
+      trackVenue: file.trackVenue,
+      racesCount: 0,
+      incidents: 0,
+      vehicle: 0,
+      wall: 0,
+      severity: 0,
+    };
+    trackEntry.racesCount++;
+    trackEntry.incidents += driverIncidents.length;
+    trackEntry.vehicle += vehicleContacts;
+    trackEntry.wall += wallContacts;
+    trackEntry.severity += raceSeverity;
+    trackMap.set(file.trackCourse, trackEntry);
+
+    const raceOpponentsList = Array.from(raceOpponentsMap.entries()).map(([name, val]) => ({
+      name,
+      count: val.count,
+      severity: Math.round(val.severity),
+    }));
+
+    raceDetails.push({
+      file,
+      session,
+      driver,
+      vehicleContacts,
+      wallContacts,
+      otherContacts,
+      totalIncidents: driverIncidents.length,
+      totalSeverity: Math.round(raceSeverity),
+      penaltiesCount: driverPenalties.length,
+      trackLimitsCount: driverTL.length,
+      opponents: raceOpponentsList,
+      incidentsPerLap: driver.totalLaps > 0 ? Number((driverIncidents.length / driver.totalLaps).toFixed(2)) : driverIncidents.length,
+      srImpact,
+      srGrade,
+      rrDelta,
+      isOnline: isOnline(file),
+      isRated: isRatedRace(file),
+      position: driver.position,
+      classPosition: driver.classPosition,
+      gridPosition: driver.gridPosition,
+      classGridPosition: driver.classGridPosition,
+      positionGain,
+      totalDrivers: session.drivers.length,
+      classDrivers,
+      lapsCompleted: driver.totalLaps,
+      finishStatus: driver.finishStatus,
+      isDnf: dnf,
+    });
+  }
+
+  // Sort races by date descending
+  raceDetails.sort((a, b) => b.file.timeString.localeCompare(a.file.timeString));
+
+  // Find extremes
+  const mostChaoticRace = raceDetails.length > 0
+    ? [...raceDetails].sort((a, b) => b.totalIncidents - a.totalIncidents || b.totalSeverity - a.totalSeverity)[0]
+    : null;
+
+  const cleanestRace = raceDetails.length > 0
+    ? [...raceDetails].sort((a, b) => a.totalIncidents - b.totalIncidents || b.lapsCompleted - a.lapsCompleted)[0]
+    : null;
+
+  const highestRRGainRace = raceDetails.length > 0
+    ? [...raceDetails].sort((a, b) => b.rrDelta - a.rrDelta)[0]
+    : null;
+
+  // Rivalries list
+  const rivalries: CollisionOpponent[] = Array.from(opponentMap.entries())
+    .map(([opponent, val]) => ({
+      opponent,
+      count: val.count,
+      severity: Math.round(val.severity),
+      racesCount: val.raceSet.size,
+    }))
+    .sort((a, b) => b.count - a.count || b.severity - a.severity);
+
+  // Track safety list
+  const trackSafetyStats: TrackSafetyStat[] = Array.from(trackMap.entries())
+    .map(([trackCourse, val]) => ({
+      trackCourse,
+      trackVenue: val.trackVenue,
+      racesCount: val.racesCount,
+      totalIncidents: val.incidents,
+      vehicleContacts: val.vehicle,
+      wallContacts: val.wall,
+      avgIncidentsPerRace: Number((val.incidents / val.racesCount).toFixed(1)),
+      totalSeverity: Math.round(val.severity),
+    }))
+    .sort((a, b) => b.avgIncidentsPerRace - a.avgIncidentsPerRace || b.totalIncidents - a.totalIncidents);
+
+  const estimatedNetSR = Number(raceDetails.reduce((sum, r) => sum + r.srImpact, 0).toFixed(2));
+  const estimatedNetRR = raceDetails.reduce((sum, r) => sum + r.rrDelta, 0);
+
+  return {
+    totalRaces,
+    cleanRaces,
+    cleanRacePct: totalRaces > 0 ? Math.round((cleanRaces / totalRaces) * 100) : 0,
+    totalIncidents: totalIncidentsSum,
+    totalVehicleContacts: totalVehiclesSum,
+    totalWallContacts: totalWallsSum,
+    totalSeverity: Math.round(totalSeveritySum),
+    totalPenalties: totalPenaltiesSum,
+    totalTrackLimits: totalTrackLimitsSum,
+    avgIncidentsPerRace: totalRaces > 0 ? Number((totalIncidentsSum / totalRaces).toFixed(1)) : 0,
+    avgIncidentsPerLap: totalLapsSum > 0 ? Number((totalIncidentsSum / totalLapsSum).toFixed(2)) : 0,
+    totalLaps: totalLapsSum,
+    estimatedNetSR,
+    estimatedNetRR,
+    mostChaoticRace,
+    cleanestRace,
+    highestRRGainRace,
+    rivalries,
+    trackSafetyStats,
+    raceDetails,
+  };
+}
+

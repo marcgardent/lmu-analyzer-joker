@@ -71,7 +71,7 @@ Build outputs to `dist/`. Deployed via Cloudflare Pages (`wrangler.jsonc`).
 
 ### Views
 
-Eleven views: Overview, Personal Bests, Sessions, Session Detail, Tracks, Cars, Race Results, Race Pace, Track Mode, Driver Profile, About. Each receives `files` (already filtered by class) and `driverNames`.
+Twelve views: Overview, Personal Bests, Sessions, Session Detail, Tracks, Cars, Race Results, Safety & Ratings, Race Pace, Track Mode, Driver Profile, About. Each receives `files` (already filtered by class) and `driverNames`.
 
 - `OverviewView` — Dashboard with stat cards (sessions, laps, races, tracks, cars, distance, best lap) + track/car stats tables
 - `PersonalBestsView` — Best laps per track/car with theoretical best (combined best sectors), filterable by track/car/mode
@@ -80,6 +80,7 @@ Eleven views: Overview, Personal Bests, Sessions, Session Detail, Tracks, Cars, 
 - `TracksView` — Per-track performance with best laps by class, sector breakdown, car usage history
 - `CarsView` — Per-car usage, best laps, track visits, sessions, distance
 - `RaceResultsView` — Race outcomes with position progress chart, wins/podiums/top-5s stats, DNF tracking
+- `SafetyRatingView` — Race collisions, vehicle vs wall contacts breakdown, impact severity force, SR (Safety Rating) & RR (Rank Rating) progression and points, crash rivalries, and circuit danger rankings
 - `RacePaceView` — Community benchmark comparison (ohne_speed pace tiers), rating badges, delta to next target
 - `TrackModeView` — Per-track deep dive: your times vs benchmark tiers and theoretical best for a selected track
 - `DriverProfileView` — Name/avatar editor, session stats, class breakdown, track frequency, incident summary

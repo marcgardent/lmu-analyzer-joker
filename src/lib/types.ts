@@ -128,3 +128,74 @@ export interface DriverSummary {
   totalLaps: number;
   isPlayer: boolean;
 }
+
+export interface CollisionOpponent {
+  opponent: string;
+  count: number;
+  severity: number;
+  racesCount: number;
+}
+
+export interface TrackSafetyStat {
+  trackCourse: string;
+  trackVenue: string;
+  racesCount: number;
+  totalIncidents: number;
+  vehicleContacts: number;
+  wallContacts: number;
+  avgIncidentsPerRace: number;
+  totalSeverity: number;
+}
+
+export interface RaceCollisionDetail {
+  file: RaceFile;
+  session: SessionData;
+  driver: DriverResult;
+  vehicleContacts: number;
+  wallContacts: number;
+  otherContacts: number;
+  totalIncidents: number;
+  totalSeverity: number;
+  penaltiesCount: number;
+  trackLimitsCount: number;
+  opponents: Array<{ name: string; count: number; severity: number }>;
+  incidentsPerLap: number;
+  srImpact: number;
+  srGrade: 'A+' | 'A' | 'B' | 'C' | 'D' | 'F';
+  rrDelta: number;
+  isOnline: boolean;
+  isRated: boolean;
+  position: number;
+  classPosition: number;
+  gridPosition: number | null;
+  classGridPosition: number | null;
+  positionGain: number | null;
+  totalDrivers: number;
+  classDrivers: number;
+  lapsCompleted: number;
+  finishStatus: string;
+  isDnf: boolean;
+}
+
+export interface SafetySummaryStats {
+  totalRaces: number;
+  cleanRaces: number;
+  cleanRacePct: number;
+  totalIncidents: number;
+  totalVehicleContacts: number;
+  totalWallContacts: number;
+  totalSeverity: number;
+  totalPenalties: number;
+  totalTrackLimits: number;
+  avgIncidentsPerRace: number;
+  avgIncidentsPerLap: number;
+  totalLaps: number;
+  estimatedNetSR: number;
+  estimatedNetRR: number;
+  mostChaoticRace: RaceCollisionDetail | null;
+  cleanestRace: RaceCollisionDetail | null;
+  highestRRGainRace: RaceCollisionDetail | null;
+  rivalries: CollisionOpponent[];
+  trackSafetyStats: TrackSafetyStat[];
+}
+
