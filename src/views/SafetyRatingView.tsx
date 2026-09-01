@@ -47,6 +47,9 @@ import {
   getChartTooltipStyle,
   CHART_AXIS_TICK,
   CHART_GRID_STROKE,
+  getSessionDate,
+  formatSessionDateTime,
+  formatSessionDateShort,
 } from '../lib/formatting';
 import { buildSessionContext } from '../lib/sessionContext';
 import { trackLabel, trackAlias } from '../lib/racepace';
@@ -104,7 +107,7 @@ export const SafetyRatingView = memo(function SafetyRatingView({ files, driverNa
         return copy.sort((a, b) => a.rrDelta - b.rrDelta);
       case 'all':
       default:
-        return copy.sort((a, b) => b.file.timeString.localeCompare(a.file.timeString));
+        return copy.sort((a, b) => getSessionDate(b.file, b.session).localeCompare(getSessionDate(a.file, a.session)));
     }
   }, [fullStats.raceDetails, filter, quickSort]);
 
@@ -122,13 +125,14 @@ export const SafetyRatingView = memo(function SafetyRatingView({ files, driverNa
       cumSR = Number((cumSR + r.srImpact).toFixed(2));
       cumRR += r.rrDelta;
 
-      const dateShort = r.file.timeString.slice(5, 10);
+      const sessionDate = getSessionDate(r.file, r.session);
+      const dateShort = formatSessionDateShort(sessionDate);
       const trackName = (trackAlias(r.file.trackCourse) ?? r.file.trackCourse).slice(0, 10);
 
       return {
         idx: idx + 1,
         raceLabel: `${trackName} (${dateShort})`,
-        date: r.file.timeString,
+        date: sessionDate,
         track: r.file.trackCourse,
         vehicleContacts: r.vehicleContacts,
         wallContacts: r.wallContacts,
@@ -163,8 +167,8 @@ export const SafetyRatingView = memo(function SafetyRatingView({ files, driverNa
       key: 'date',
       label: 'Date',
       width: '12%',
-      sortValue: r => r.file.timeString,
-      render: r => <span className="text-racing-muted text-xs font-mono">{r.file.timeString}</span>,
+      sortValue: r => getSessionDate(r.file, r.session),
+      render: r => <span className="text-racing-muted text-xs font-mono">{formatSessionDateTime(getSessionDate(r.file, r.session))}</span>,
     },
     {
       key: 'track',

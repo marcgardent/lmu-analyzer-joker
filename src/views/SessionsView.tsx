@@ -8,7 +8,7 @@ import { SortableTable, type Column } from '../components/SortableTable';
 import { ExportButton } from '../components/ExportButton';
 import { isOnline, isRatedRace, calculateConsistency, getTopSpeed, isIncompleteRace } from '../lib/analytics';
 import { trackOption, trackLabel } from '../lib/racepace';
-import { formatLapTime, formatSpeed, getConsistencyColor, getSessionTypeStyle } from '../lib/formatting';
+import { formatLapTime, formatSpeed, getConsistencyColor, getSessionTypeStyle, getSessionDate, formatSessionDateTime } from '../lib/formatting';
 import { buildSessionContext } from '../lib/sessionContext';
 import { useDataIndex } from '../lib/useDataIndex';
 import type { RaceFile, DriverResult, SessionData } from '../lib/types';
@@ -42,7 +42,7 @@ export const SessionsView = memo(function SessionsView({ onNavigate }: SessionsV
     .filter(s => filterTrack === 'All' || s.file.trackCourse === filterTrack)
     // Precompute per-row derived values once, so columns don't recompute in sortValue/render
     .map((s): SessionRow => ({ ...s, topSpeed: getTopSpeed(s.driver.laps), consistency: calculateConsistency(s.driver.laps) }))
-    .sort((a, b) => (b.session.dateTime || b.file.timeString).localeCompare(a.session.dateTime || a.file.timeString)), [allSessions, filterSetting, filterType, filterTrack]);
+    .sort((a, b) => getSessionDate(b.file, b.session).localeCompare(getSessionDate(a.file, a.session))), [allSessions, filterSetting, filterType, filterTrack]);
 
   const columns: Column<SessionRow>[] = useMemo(() => [
     { key: 'type', label: 'Type', width: '105px',
@@ -105,8 +105,8 @@ export const SessionsView = memo(function SessionsView({ onNavigate }: SessionsV
       render: r => { if (r.session.type !== 'Race' || !r.driver.gridPosition) return null; const g = r.driver.gridPosition - r.driver.position; return <span className={`text-xs font-bold ${g > 0 ? 'text-racing-green' : g < 0 ? 'text-racing-red' : 'text-racing-muted'}`}>{g > 0 ? '+' : ''}{g}</span>; },
     },
     { key: 'date', label: 'Date', align: 'right', width: '155px',
-      sortValue: r => r.session.dateTime || r.file.timeString,
-      render: r => <span className="text-racing-muted text-xs">{r.session.dateTime || r.file.timeString}</span>,
+      sortValue: r => getSessionDate(r.file, r.session),
+      render: r => <span className="text-racing-muted text-xs font-mono">{formatSessionDateTime(getSessionDate(r.file, r.session))}</span>,
     },
   ], []);
 

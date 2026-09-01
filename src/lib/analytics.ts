@@ -3,6 +3,7 @@ import type {
   RaceCollisionDetail, SafetySummaryStats, CollisionOpponent, TrackSafetyStat,
 } from './types';
 import { computeRaceJokerImpact } from './joker';
+import { getSessionDate } from './formatting';
 
 /** Car classes ordered by speed (fastest first) */
 export const CLASS_SPEED_ORDER: CarClass[] = ['Hyper', 'LMP2-WEC', 'LMP2-ELMS', 'LMP3', 'GTE', 'GT3'];
@@ -126,8 +127,9 @@ export function deduplicateSessions(files: RaceFile[]): RaceFile[] {
     const file = files[fi];
     for (let si = 0; si < file.sessions.length; si++) {
       const sess = file.sessions[si];
-      const key = file.timeString
-        ? `${file.timeString}|${file.trackCourse}|${sess.sourceTag ?? sess.type}`
+      const sessionDate = getSessionDate(file, sess);
+      const key = sessionDate
+        ? `${sessionDate}|${file.trackCourse}|${sess.sourceTag ?? sess.type}`
         : `__ungrouped_${fi}_${si}`;
       const group = groups.get(key);
       if (group) group.push({ fileIdx: fi, sessionIdx: si });
@@ -198,7 +200,7 @@ function toLapRecord(file: RaceFile, session: SessionData, driver: DriverResult,
     carClass: driver.carClass,
     sessionType: session.type,
     sessionIndex: session.sessionIndex,
-    date: file.timeString,
+    date: getSessionDate(file, session),
     fileName: file.fileName,
     lapNumber: lap.num,
     driverName: driver.name,
@@ -693,7 +695,7 @@ export function getRaceResults(files: RaceFile[], driverNames: string | string[]
     });
   }
 
-  return results.sort((a, b) => b.file.timeString.localeCompare(a.file.timeString));
+  return results.sort((a, b) => getSessionDate(b.file, b.session).localeCompare(getSessionDate(a.file, a.session)));
 }
 
 export interface TrackBest {
@@ -1137,7 +1139,7 @@ export function getSafetyAndRatingStats(
   }
 
   // Sort races by date descending
-  raceDetails.sort((a, b) => b.file.timeString.localeCompare(a.file.timeString));
+  raceDetails.sort((a, b) => getSessionDate(b.file, b.session).localeCompare(getSessionDate(a.file, a.session)));
 
   // Find extremes
   const mostChaoticRace = raceDetails.length > 0

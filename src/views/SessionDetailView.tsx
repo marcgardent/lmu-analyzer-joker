@@ -8,7 +8,7 @@ import { ExportButton } from '../components/ExportButton';
 import { SessionLink } from '../components/SessionLink';
 import { trackLabel } from '../lib/racepace';
 import { getTireWearPerLap, getTopSpeed, isDnf, isIncompleteRace, isDriverIncident, isOnline, isRatedRace, isValidLap, lapTimeStats, computeRRDelta, computeSRImpact, MAX_INT32_SENTINEL } from '../lib/analytics';
-import { formatLapTime, formatSector, formatSpeed, formatEventTime, getChartTooltipStyle, getConsistencyColor, getSessionTypeStyle, CHART_AXIS_TICK, CHART_GRID_STROKE } from '../lib/formatting';
+import { formatLapTime, formatSector, formatSpeed, formatEventTime, getChartTooltipStyle, getConsistencyColor, getSessionTypeStyle, CHART_AXIS_TICK, CHART_GRID_STROKE, getSessionDate, formatSessionDateTime } from '../lib/formatting';
 import { JokerImpactBadge } from '../components/JokerImpactBadge';
 import { computeRaceJokerImpact, getRaceKey } from '../lib/joker';
 import { useJokers } from '../lib/JokerContext';
@@ -123,7 +123,7 @@ export const SessionDetailView = memo(function SessionDetailView({ file, session
             <ClassBadge carClass={driver.carClass} />
           </div>
           <p className="text-racing-muted text-xs mt-0.5">
-            {driver.name} &middot; {driver.carType} &middot; #{driver.carNumber} &middot; {session.dateTime || file.timeString}
+            {driver.name} &middot; {driver.carType} &middot; #{driver.carNumber} &middot; {formatSessionDateTime(getSessionDate(file, session))}
             {isOnline(file) && <span className="text-racing-blue ml-2">Online</span>}
           </p>
         </div>

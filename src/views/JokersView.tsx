@@ -21,6 +21,7 @@ import { getJokerProgression, getRaceKey, computeRaceJokerImpact } from '../lib/
 import { useJokers } from '../lib/JokerContext';
 import { trackLabel } from '../lib/racepace';
 import { buildSessionContext } from '../lib/sessionContext';
+import { getSessionDate, formatSessionDateTime } from '../lib/formatting';
 import type { RaceFile, RaceCollisionDetail, CarClass, JokerStrategy } from '../lib/types';
 
 interface JokersViewProps {
@@ -105,7 +106,7 @@ export const JokersView = memo(function JokersView({
         }
 
         // Final tie-breaker: date (most recent first)
-        return b.file.timeString.localeCompare(a.file.timeString);
+        return getSessionDate(b.file, b.session).localeCompare(getSessionDate(a.file, a.session));
       });
   }, [evaluatedRaces, isConsumed, strategy]);
 
@@ -202,10 +203,10 @@ export const JokersView = memo(function JokersView({
       key: 'date',
       label: 'Date',
       width: '12%',
-      sortValue: r => r.file.timeString,
+      sortValue: r => getSessionDate(r.file, r.session),
       render: r => (
         <span className="text-racing-muted font-mono text-xs whitespace-nowrap">
-          {r.file.timeString.slice(0, 16).replace('T', ' ')}
+          {formatSessionDateTime(getSessionDate(r.file, r.session))}
         </span>
       ),
     },
@@ -484,7 +485,7 @@ export const JokersView = memo(function JokersView({
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <div className="font-bold text-white text-sm">{trackLabel(cand.file.trackCourse)}</div>
-                        <div className="text-racing-muted text-[11px] font-mono">{cand.file.timeString.slice(0, 16).replace('T', ' ')}</div>
+                        <div className="text-racing-muted text-[11px] font-mono">{formatSessionDateTime(getSessionDate(cand.file, cand.session))}</div>
                       </div>
                       {onNavigate && (
                         <button

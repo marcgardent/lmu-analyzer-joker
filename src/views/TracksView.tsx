@@ -9,7 +9,15 @@ import { ExportButton } from '../components/ExportButton';
 import { buildLapColumns } from '../components/lapColumns';
 import { StatCell, LapValidityCell } from '../components/StatCell';
 import { isValidLap } from '../lib/analytics';
-import { formatLapTime, formatSpeed, getChartTooltipStyle, CHART_AXIS_TICK, CHART_GRID_STROKE } from '../lib/formatting';
+import {
+  formatLapTime,
+  formatSpeed,
+  getChartTooltipStyle,
+  CHART_AXIS_TICK,
+  CHART_GRID_STROKE,
+  getSessionDate,
+  formatSessionDateTime,
+} from '../lib/formatting';
 import { useDataIndex } from '../lib/useDataIndex';
 import { trackLabel } from '../lib/racepace';
 import type { RaceFile, PersonalBest } from '../lib/types';
@@ -43,10 +51,10 @@ export const TracksView = memo(function TracksView({ files, initialTrack, onNavi
   // Lap time progression over sessions for this track
   const progressionData = useMemo(() => {
     const data: Array<{ session: string; lapTime: number; car: string }> = [];
-    for (const { file, driver } of trackSessions) {
+    for (const { file, session, driver } of trackSessions) {
       if (driver.bestLapTime && driver.bestLapTime > 0) {
         data.push({
-          session: file.timeString.slice(5, 16),
+          session: formatSessionDateTime(getSessionDate(file, session)),
           lapTime: driver.bestLapTime,
           car: driver.carType,
         });
@@ -75,10 +83,10 @@ export const TracksView = memo(function TracksView({ files, initialTrack, onNavi
 
   const sortedTrackLaps = useMemo(() => [...trackLaps].sort((a, b) => a.lapTime - b.lapTime), [trackLaps]);
 
-  const speedData = useMemo(() => trackSessions.map(({ file, driver }) => {
+  const speedData = useMemo(() => trackSessions.map(({ file, session, driver }) => {
     const maxSpeed = Math.max(...driver.laps.map(l => l.topSpeed));
     return {
-      session: file.timeString.slice(5, 16),
+      session: formatSessionDateTime(getSessionDate(file, session)),
       topSpeed: maxSpeed > 0 ? maxSpeed : null,
     };
   }).filter(d => d.topSpeed), [trackSessions]);

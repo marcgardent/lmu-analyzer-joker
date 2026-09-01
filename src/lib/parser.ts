@@ -160,7 +160,24 @@ function parseStreamEvents(streamEl: Element | null) {
   return { incidents, penalties, trackLimits };
 }
 
-function parseSession(sessionEl: Element, sourceTag: string, type: SessionType, index: number): SessionData {
+function formatTimestamp(tsStr: string): string {
+  if (!tsStr) return '';
+  const num = parseInt(tsStr, 10);
+  if (!isNaN(num) && num > 0 && tsStr.trim().length >= 9 && tsStr.trim().length <= 11) {
+    const d = new Date(num * 1000);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  }
+  return tsStr.trim();
+}
+
+function parseSession(
+  sessionEl: Element,
+  sourceTag: string,
+  type: SessionType,
+  index: number,
+  fallbackDate: string
+): SessionData {
   const streamEl = sessionEl.getElementsByTagName('Stream')[0] ?? null;
   const { incidents, penalties, trackLimits } = parseStreamEvents(streamEl);
 
@@ -170,11 +187,18 @@ function parseSession(sessionEl: Element, sourceTag: string, type: SessionType, 
     drivers.push(parseDriver(driverEls[i]));
   }
 
+  const sessionTimeString = getText(sessionEl, 'TimeString');
+  const sessionDateTime = getText(sessionEl, 'DateTime');
+  let sessionDate = sessionTimeString || formatTimestamp(sessionDateTime);
+  if (!sessionDate) {
+    sessionDate = fallbackDate;
+  }
+
   return {
     type,
     sourceTag,
     sessionIndex: index,
-    dateTime: getText(sessionEl, 'TimeString'),
+    dateTime: sessionDate,
     lapsLimit: parseInt(getText(sessionEl, 'Laps')) || 0,
     minutesLimit: parseInt(getText(sessionEl, 'Minutes')) || 0,
     mostLapsCompleted: parseInt(getText(sessionEl, 'MostLapsCompleted')) || 0,
@@ -198,12 +222,25 @@ export function parseRaceFile(xmlString: string, fileName: string): RaceFile {
 
   if (!root) throw new Error(`Invalid race file: ${fileName}`);
 
+  let rootTimeString = getText(root, 'TimeString');
+  const rootDateTime = getText(root, 'DateTime');
+
+  if (!rootTimeString && rootDateTime) {
+    rootTimeString = formatTimestamp(rootDateTime);
+  }
+  if (!rootTimeString && fileName) {
+    const match = fileName.match(/^(\d{4})_(\d{2})_(\d{2})_(\d{2})_(\d{2})_(\d{2})/);
+    if (match) {
+      rootTimeString = `${match[1]}/${match[2]}/${match[3]} ${match[4]}:${match[5]}:${match[6]}`;
+    }
+  }
+
   const sessions: SessionData[] = [];
   let sessionIdx = 0;
   for (const tag of SESSION_TAGS) {
     const els = root.getElementsByTagName(tag);
     for (let i = 0; i < els.length; i++) {
-      sessions.push(parseSession(els[i], tag, SESSION_TAG_MAP[tag], sessionIdx++));
+      sessions.push(parseSession(els[i], tag, SESSION_TAG_MAP[tag], sessionIdx++, rootTimeString));
     }
   }
 
@@ -216,8 +253,8 @@ export function parseRaceFile(xmlString: string, fileName: string): RaceFile {
     fileName,
     setting: getText(root, 'Setting'),
     serverName: getText(root, 'ServerName'),
-    dateTime: getText(root, 'DateTime'),
-    timeString: getText(root, 'TimeString'),
+    dateTime: rootDateTime,
+    timeString: rootTimeString,
     trackVenue: getText(root, 'TrackVenue'),
     trackCourse: getText(root, 'TrackCourse') || getText(root, 'TrackVenue'),
     trackEvent: getText(root, 'TrackEvent'),

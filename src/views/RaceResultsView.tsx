@@ -22,7 +22,15 @@ import {
 } from '../lib/analytics';
 import { computeRaceJokerImpact, getRaceKey } from '../lib/joker';
 import { useJokers } from '../lib/JokerContext';
-import { formatLapTime, getChartTooltipStyle, CHART_AXIS_TICK, CHART_GRID_STROKE } from '../lib/formatting';
+import {
+  formatLapTime,
+  getChartTooltipStyle,
+  CHART_AXIS_TICK,
+  CHART_GRID_STROKE,
+  getSessionDate,
+  formatSessionDateTime,
+  formatSessionDateShort,
+} from '../lib/formatting';
 import { buildSessionContext } from '../lib/sessionContext';
 import { trackLabel, trackAlias } from '../lib/racepace';
 import type { RaceFile, RaceJokerEvaluation } from '../lib/types';
@@ -120,12 +128,15 @@ export const RaceResultsView = memo(function RaceResultsView({ files, driverName
     return filtered;
   }, [allRows, filter]);
 
-  const positionData = useMemo(() => results.map((r, i) => ({
-    race: `${(trackAlias(r.file.trackCourse) ?? r.file.trackCourse).slice(0, 12)} ${r.file.timeString.slice(5, 10)}`,
-    position: r.classPosition,
-    total: r.classDrivers,
-    idx: i,
-  })).reverse(), [results]);
+  const positionData = useMemo(() => results.map((r, i) => {
+    const sessionDate = getSessionDate(r.file, r.session);
+    return {
+      race: `${(trackAlias(r.file.trackCourse) ?? r.file.trackCourse).slice(0, 12)} ${formatSessionDateShort(sessionDate)}`,
+      position: r.classPosition,
+      total: r.classDrivers,
+      idx: i,
+    };
+  }).reverse(), [results]);
 
   // Progression & Stats
   const totalRaces = results.length;
@@ -142,10 +153,10 @@ export const RaceResultsView = memo(function RaceResultsView({ files, driverName
       key: 'date',
       label: 'Date',
       width: '12%',
-      sortValue: r => r.file.timeString,
+      sortValue: r => getSessionDate(r.file, r.session),
       render: r => (
         <span className="text-racing-muted font-mono text-xs whitespace-nowrap">
-          {r.file.timeString.slice(0, 16).replace('T', ' ')}
+          {formatSessionDateTime(getSessionDate(r.file, r.session))}
         </span>
       ),
     },

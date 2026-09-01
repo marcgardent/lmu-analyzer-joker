@@ -9,7 +9,7 @@ import { trackOption, trackLabel } from '../lib/racepace';
 import { SortableTable, type Column } from '../components/SortableTable';
 import { ExportButton } from '../components/ExportButton';
 import { getTheoreticalBest } from '../lib/analytics';
-import { formatLapTime, formatSector, formatSpeed } from '../lib/formatting';
+import { formatLapTime, formatSector, formatSpeed, formatSessionDateTime } from '../lib/formatting';
 import { useDataIndex } from '../lib/useDataIndex';
 import type { RaceFile, PersonalBest } from '../lib/types';
 
@@ -149,7 +149,7 @@ export const PersonalBestsView = memo(function PersonalBestsView({ files, driver
               : <span className="text-racing-muted text-xs">{r.sessionType} &mdash; L{r.lapNumber}</span> },
           { key: 'date', label: 'Date', width: '12%',
             sortValue: r => r.date,
-            render: r => r.rowType === 'theoretical' ? <span className="text-racing-muted/40 text-xs">&mdash;</span> : <span className="text-racing-muted/60 text-xs">{r.date}</span> },
+            render: r => r.rowType === 'theoretical' ? <span className="text-racing-muted/40 text-xs">&mdash;</span> : <span className="text-racing-muted/60 text-xs font-mono">{formatSessionDateTime(r.date)}</span> },
         ];
 
         return (
