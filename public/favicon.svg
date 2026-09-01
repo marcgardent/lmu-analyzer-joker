@@ -1,4 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
   <rect width="32" height="32" rx="6" fill="#e10600"/>
-  <text x="16" y="22" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="900" font-size="11" fill="white" letter-spacing="1">LMU</text>
+  <g id="layer1">
+  </g>
+  <text x="16" y="14" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-weight="900" font-size="11" fill="white">LMU</text>
+  <text x="16" y="20" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-weight="900" font-size="4.2" fill="white">ANALYZER</text>
 </svg>
+
