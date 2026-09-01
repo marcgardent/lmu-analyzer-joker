@@ -5,7 +5,9 @@ import { DataCardHeader } from '../components/DataCardHeader';
 import { SortableTable, type Column } from '../components/SortableTable';
 import { ExportButton } from '../components/ExportButton';
 import { StatCard } from '../components/StatCard';
+import { JokerBankCard } from '../components/JokerBankCard';
 import { getDriverProfileStats, type DriverProfileStats, type TrackBest } from '../lib/analytics';
+import { getJokerProgression } from '../lib/joker';
 import { formatLapTime, formatSector, formatDistance } from '../lib/formatting';
 import { saveProfileName, loadProfileName, saveProfileAvatar, loadProfileAvatar, clearProfileAvatar, KEYS, lsGet, lsSet } from '../lib/storage';
 import { useClickOutside } from '../lib/useClickOutside';
@@ -331,6 +333,11 @@ export const DriverProfileView = memo(function DriverProfileView({ files, driver
             </p>
           </div>
         </div>
+      </div>
+
+      {/* Event Joker Inventory */}
+      <div className="animate-in animate-in-2">
+        <JokerBankCard progression={getJokerProgression(profile.total.races)} />
       </div>
 
       {/* All Race Stats */}

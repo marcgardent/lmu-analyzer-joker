@@ -175,6 +175,30 @@ export interface RaceCollisionDetail {
   lapsCompleted: number;
   finishStatus: string;
   isDnf: boolean;
+  jokerImpact?: RaceJokerEvaluation;
+}
+
+export type RaceJokerTier = 'critical' | 'high' | 'moderate' | 'low' | 'none';
+
+export interface RaceJokerEvaluation {
+  score: number; // 0 - 100
+  tier: RaceJokerTier;
+  tierLabel: string;
+  recommendation: string;
+  rrPointsProtected: number;
+  srProtected: number;
+  dnfProtected: boolean;
+  positionDrop: number;
+  reasons: string[];
+}
+
+export interface JokerProgression {
+  totalRaces: number;
+  jokersEarned: number;
+  maxJokers: number;
+  racesToNextJoker: number;
+  nextThreshold: number;
+  progressPct: number;
 }
 
 export interface SafetySummaryStats {
@@ -198,4 +222,5 @@ export interface SafetySummaryStats {
   rivalries: CollisionOpponent[];
   trackSafetyStats: TrackSafetyStat[];
 }
+
 

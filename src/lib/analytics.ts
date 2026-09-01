@@ -2,6 +2,7 @@ import type {
   RaceFile, PersonalBest, DriverSummary, DriverResult, LapData, SessionData, CarClass,
   RaceCollisionDetail, SafetySummaryStats, CollisionOpponent, TrackSafetyStat,
 } from './types';
+import { computeRaceJokerImpact } from './joker';
 
 /** Car classes ordered by speed (fastest first) */
 export const CLASS_SPEED_ORDER: CarClass[] = ['Hyper', 'LMP2-WEC', 'LMP2-ELMS', 'LMP3', 'GTE', 'GT3'];
@@ -1111,6 +1112,21 @@ export function getSafetyAndRatingStats(
       lapsCompleted: driver.totalLaps,
       finishStatus: driver.finishStatus,
       isDnf: dnf,
+      jokerImpact: computeRaceJokerImpact({
+        rrDelta,
+        srImpact,
+        isDnf: dnf,
+        lapsCompleted: driver.totalLaps,
+        position: driver.position,
+        classPosition: driver.classPosition,
+        gridPosition: driver.gridPosition,
+        classGridPosition: driver.classGridPosition,
+        penaltiesCount: driverPenalties.length,
+        totalSeverity: raceSeverity,
+        vehicleContacts,
+        isOnline: isOnline(file),
+        isRated: isRatedRace(file),
+      }),
     });
   }
 

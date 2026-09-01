@@ -7,8 +7,10 @@ import { SortableTable, type Column } from '../components/SortableTable';
 import { ExportButton } from '../components/ExportButton';
 import { SessionLink } from '../components/SessionLink';
 import { trackLabel } from '../lib/racepace';
-import { getTireWearPerLap, getTopSpeed, isDnf, isDriverIncident, isOnline, isValidLap, lapTimeStats, MAX_INT32_SENTINEL } from '../lib/analytics';
+import { getTireWearPerLap, getTopSpeed, isDnf, isDriverIncident, isOnline, isRatedRace, isValidLap, lapTimeStats, computeRRDelta, computeSRImpact, MAX_INT32_SENTINEL } from '../lib/analytics';
 import { formatLapTime, formatSector, formatSpeed, formatEventTime, getChartTooltipStyle, getConsistencyColor, getSessionTypeStyle, CHART_AXIS_TICK, CHART_GRID_STROKE } from '../lib/formatting';
+import { JokerImpactBadge } from '../components/JokerImpactBadge';
+import { computeRaceJokerImpact } from '../lib/joker';
 import type { RaceFile, SessionData, DriverResult, LapData } from '../lib/types';
 
 type Tab = 'overview' | 'laps' | 'charts' | 'tyres' | 'incidents' | 'penalties' | 'tracklimits';
@@ -179,6 +181,53 @@ type StandingRow = DriverResult & { driverTopSpeed: number | null; wearPerLap: n
 function DriverSessionCards({ file, session, driver, stats }: {
   file: RaceFile; session: SessionData; driver: DriverResult; stats: StatsData | null;
 }) {
+  const jokerEvaluation = useMemo(() => {
+    if (session.type !== 'Race') return null;
+    const driverIncidents = session.incidents.filter(i => isDriverIncident(i, driver.name));
+    const driverPenalties = session.penalties.filter(p => p.driver === driver.name);
+    const totalSeverity = driverIncidents.reduce((s, i) => s + i.severity, 0);
+    const vehicleContacts = driverIncidents.filter(i => (i.description || '').toLowerCase().includes('with another vehicle')).length;
+    const wallContacts = driverIncidents.filter(i => {
+      const text = (i.description || '').toLowerCase();
+      return text.includes('immovable') || text.includes('wall') || text.includes('post') || text.includes('barrier');
+    }).length;
+    const dnf = isDnf(driver.finishStatus);
+    const classDrivers = session.drivers.filter(d => d.carClass === driver.carClass).length;
+
+    const { srImpact } = computeSRImpact(
+      driverIncidents.length,
+      vehicleContacts,
+      wallContacts,
+      driverPenalties.length,
+      driver.totalLaps,
+      dnf,
+      totalSeverity
+    );
+
+    const rrDelta = computeRRDelta(
+      driver.classPosition,
+      classDrivers,
+      driver.classGridPosition,
+      dnf
+    );
+
+    return computeRaceJokerImpact({
+      rrDelta,
+      srImpact,
+      isDnf: dnf,
+      lapsCompleted: driver.totalLaps,
+      position: driver.position,
+      classPosition: driver.classPosition,
+      gridPosition: driver.gridPosition,
+      classGridPosition: driver.classGridPosition,
+      penaltiesCount: driverPenalties.length,
+      totalSeverity,
+      vehicleContacts,
+      isOnline: isOnline(file),
+      isRated: isRatedRace(file),
+    });
+  }, [file, session, driver]);
+
   return (
     <div className="space-y-4">
       {/* Session Info */}
@@ -234,6 +283,14 @@ function DriverSessionCards({ file, session, driver, stats }: {
         </div>
       </div>
 
+      {/* Joker Impact Evaluation for Race Sessions */}
+      {jokerEvaluation && (
+        <JokerImpactBadge
+          evaluation={jokerEvaluation}
+          variant="detailed"
+        />
+      )}
+
       {/* Performance Stats */}
       {stats && (
         <div className="data-card carbon-fiber p-5">
@@ -257,6 +314,7 @@ function DriverSessionCards({ file, session, driver, stats }: {
     </div>
   );
 }
+
 
 function StandingsTab({ file, session, driver, standings, onNavigate }: {
   file: RaceFile; session: SessionData; driver: DriverResult;
