@@ -49,7 +49,7 @@ Build outputs to `dist/`. Deployed via Cloudflare Pages (`wrangler.jsonc`).
 - `src/lib/sessionContext.ts` — `buildSessionContext()`/`parseSessionContext()` for the session-navigation string
 - `src/lib/formatting.ts` — Time/number formatters, `errorMessage()`, chart theme constants (`CHART_AXIS_TICK`, `CHART_GRID_STROKE`)
 - `src/lib/joker.ts` — LMU Event Joker evaluation engine (`computeRaceJokerImpact()`, `getJokerProgression()`, `getRaceKey()`). Evaluates candidate disaster races according to Rank Rating loss, early DNF penalties, Safety Rating degradation, and grid collapse
-- `src/lib/JokerContext.tsx` — React context providing Joker state (`manualStock`, `isConsumed()`, `toggleJoker()`, `applyJokersToRaces()`, `clearAllJokers()`), backed by localStorage persistence
+- `src/lib/JokerContext.tsx` — React context providing Joker state (`manualStock`, `isConsumed()`, `toggleJoker()`, `isIgnored()`, `toggleIgnoreJoker()`, `clearAllIgnoredJokers()`, `applyJokersToRaces()`, `clearAllJokers()`), backed by localStorage persistence
 - `src/lib/useInstallPrompt.ts` — PWA install prompt hook; `useTheme.ts` — light/dark theme; `useClickOutside.ts` — shared outside-click hook (use this, don't hand-roll listeners)
 
 ### Components
@@ -83,7 +83,7 @@ Thirteen views: Overview, Personal Bests, Sessions, Session Detail, Tracks, Cars
 - `CarsView` — Per-car usage, best laps, track visits, sessions, distance
 - `RaceResultsView` — Race outcomes with position progress chart, wins/podiums/top-5s stats, DNF tracking
 - `SafetyRatingView` — Race collisions, vehicle vs wall contacts breakdown, impact severity force, SR (Safety Rating) & RR (Rank Rating) progression and points, crash rivalries, and circuit danger rankings
-- `JokersView` — Dedicated Event Jokers manager & simulation tool: manual in-game stock selector (0-3 Jokers), 3-way strategic optimization modes (`Rating First` pure RR → SR → Date, `Safety First` pure SR → RR → Date, `Balanced` 50/50 composite score), dynamic disaster recommendations (TOP 1/2/3) excluding already marked races, and audit table with switches to protect RR/SR points
+- `JokersView` — Dedicated Event Jokers manager & simulation tool: manual in-game stock selector (0-3 Jokers), 3-way strategic optimization modes (`Rating First` pure RR → SR → Date, `Safety First` pure SR → RR → Date, `Balanced` 50/50 composite score), dynamic disaster recommendations (TOP 1/2/3) excluding already marked and ignored races, quick action to ignore/dismiss unwanted suggestions with instant replacement, and audit table with switches to protect RR/SR points
 - `RacePaceView` — Community benchmark comparison (ohne_speed pace tiers), rating badges, delta to next target
 - `TrackModeView` — Per-track deep dive: your times vs benchmark tiers and theoretical best for a selected track
 - `DriverProfileView` — Name/avatar editor, session stats, class breakdown, track frequency, incident summary

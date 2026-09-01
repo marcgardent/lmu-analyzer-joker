@@ -9,6 +9,9 @@ import {
   Shield,
   Trophy,
   Scale,
+  EyeOff,
+  Eye,
+  RotateCcw,
 } from 'lucide-react';
 import { ClassBadge } from '../components/ClassBadge';
 import { PositionBadge } from '../components/PositionBadge';
@@ -16,7 +19,7 @@ import { DataCardHeader } from '../components/DataCardHeader';
 import { FilterButtonGroup } from '../components/FilterButtonGroup';
 import { SortableTable, type Column } from '../components/SortableTable';
 import { ExportButton } from '../components/ExportButton';
-import { getSafetyAndRatingStats, isIncompleteRace } from '../lib/analytics';
+import { getSafetyAndRatingStats, isIncompleteRace, isRatedRace } from '../lib/analytics';
 import { getJokerProgression, getRaceKey, computeRaceJokerImpact } from '../lib/joker';
 import { useJokers } from '../lib/JokerContext';
 import { trackLabel } from '../lib/racepace';
@@ -39,24 +42,32 @@ export const JokersView = memo(function JokersView({
     isConsumed,
     toggleJoker,
     consumedCount,
+    isIgnored,
+    toggleIgnoreJoker,
+    clearAllIgnoredJokers,
+    ignoredCount,
     manualStock,
     setManualStock,
     strategy,
     setStrategy,
   } = useJokers();
 
-  const [filter, setFilter] = useState<'all' | 'candidates' | 'consumed'>('all');
+  const [filter, setFilter] = useState<'all' | 'candidates' | 'consumed' | 'ignored'>('all');
 
   // Compute all base safety & rating stats
   const fullStats = useMemo(() => getSafetyAndRatingStats(files, driverNames), [files, driverNames]);
-  const allRaces = fullStats.raceDetails;
 
-  // Progression info based on official rules
-  const progression = useMemo(() => getJokerProgression(fullStats.totalRaces), [fullStats.totalRaces]);
+  // Event Jokers in LMU strictly apply to Official Online Ranked Races only
+  const rankedRaces = useMemo(() => {
+    return fullStats.raceDetails.filter(r => r.isRated || isRatedRace(r.file));
+  }, [fullStats.raceDetails]);
 
-  // Dynamically evaluate races according to the selected Strategy
+  // Progression info based on official rules (earned every 10/30/60 ranked races)
+  const progression = useMemo(() => getJokerProgression(rankedRaces.length, consumedCount), [rankedRaces.length, consumedCount]);
+
+  // Dynamically evaluate ranked races according to the selected Strategy
   const evaluatedRaces: RaceCollisionDetail[] = useMemo(() => {
-    return allRaces.map(r => {
+    return rankedRaces.map(r => {
       const evaluation = computeRaceJokerImpact({
         rrDelta: r.rrDelta,
         srImpact: r.srImpact,
@@ -72,12 +83,15 @@ export const JokersView = memo(function JokersView({
         jokerImpact: evaluation,
       };
     });
-  }, [allRaces, strategy]);
+  }, [rankedRaces, strategy]);
 
-  // Unconsumed disaster candidates for recommendation (exclude races already marked with a Joker)
+  // Unconsumed disaster candidates for recommendation (exclude races already marked with a Joker or ignored)
   const unconsumedCandidates = useMemo(() => {
     return evaluatedRaces
-      .filter(r => !isConsumed(getRaceKey(r.file.fileName, r.session.sessionIndex, r.driver.name)))
+      .filter(r => {
+        const key = getRaceKey(r.file.fileName, r.session.sessionIndex, r.driver.name);
+        return !isConsumed(key) && !isIgnored(key);
+      })
       .sort((a, b) => {
         if (strategy === 'rr_first') {
           // 1. Primary: Worst RR loss (most negative first)
@@ -108,7 +122,7 @@ export const JokersView = memo(function JokersView({
         // Final tie-breaker: date (most recent first)
         return getSessionDate(b.file, b.session).localeCompare(getSessionDate(a.file, a.session));
       });
-  }, [evaluatedRaces, isConsumed, strategy]);
+  }, [evaluatedRaces, isConsumed, isIgnored, strategy]);
 
   // Top candidates matching user's available stock
   const topRecommendations = useMemo(() => {
@@ -133,13 +147,19 @@ export const JokersView = memo(function JokersView({
   // Filtered rows for the table
   const filteredRows = useMemo(() => {
     if (filter === 'candidates') {
-      return evaluatedRaces.filter(r => (r.jokerImpact?.score ?? 0) >= 35);
+      return evaluatedRaces.filter(r => {
+        const key = getRaceKey(r.file.fileName, r.session.sessionIndex, r.driver.name);
+        return (r.jokerImpact?.score ?? 0) >= 35 && !isIgnored(key);
+      });
     }
     if (filter === 'consumed') {
       return evaluatedRaces.filter(r => isConsumed(getRaceKey(r.file.fileName, r.session.sessionIndex, r.driver.name)));
     }
+    if (filter === 'ignored') {
+      return evaluatedRaces.filter(r => isIgnored(getRaceKey(r.file.fileName, r.session.sessionIndex, r.driver.name)));
+    }
     return evaluatedRaces;
-  }, [evaluatedRaces, filter, isConsumed]);
+  }, [evaluatedRaces, filter, isConsumed, isIgnored]);
 
   // Columns for the Joker Table
   const columns: Column<RaceCollisionDetail>[] = useMemo(() => [
@@ -175,6 +195,8 @@ export const JokersView = memo(function JokersView({
       width: '130px',
       sortValue: r => r.jokerImpact?.score ?? 0,
       render: r => {
+        const raceKey = getRaceKey(r.file.fileName, r.session.sessionIndex, r.driver.name);
+        const ignored = isIgnored(raceKey);
         const score = r.jokerImpact?.score ?? 0;
         const color = score >= 75
           ? 'bg-racing-red/20 text-racing-red border-racing-red/40'
@@ -187,9 +209,16 @@ export const JokersView = memo(function JokersView({
         const reasons = r.jokerImpact?.reasons ?? [];
         return (
           <div className="flex flex-col items-center">
-            <span className={`px-2 py-0.5 rounded text-xs font-mono font-bold border ${color}`}>
-              {score}/100
-            </span>
+            <div className="flex items-center gap-1">
+              <span className={`px-2 py-0.5 rounded text-xs font-mono font-bold border ${color} ${ignored ? 'opacity-50 line-through' : ''}`}>
+                {score}/100
+              </span>
+              {ignored && (
+                <span className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-racing-red/20 text-racing-red border border-racing-red/30 font-bold" title="Suggestion ignored (excluded from TOP recommendations)">
+                  IGNORED
+                </span>
+              )}
+            </div>
             {reasons.length > 0 && (
               <span className="text-[10px] text-racing-muted mt-0.5 font-medium truncate max-w-[120px]" title={reasons.join(', ')}>
                 {reasons[0]}
@@ -318,21 +347,39 @@ export const JokersView = memo(function JokersView({
     },
     {
       key: 'action',
-      label: 'Session',
+      label: 'Actions',
       align: 'center',
-      width: '70px',
-      render: r =>
-        onNavigate ? (
-          <button
-            onClick={() => onNavigate('session', buildSessionContext(r.file.fileName, r.session.sessionIndex, r.driver.name))}
-            className="p-1.5 rounded bg-racing-dark hover:bg-racing-highlight/30 text-racing-muted hover:text-white transition-colors cursor-pointer"
-            title="Open session details"
-          >
-            <ExternalLink className="w-3.5 h-3.5" />
-          </button>
-        ) : null,
+      width: '95px',
+      render: r => {
+        const raceKey = getRaceKey(r.file.fileName, r.session.sessionIndex, r.driver.name);
+        const ignored = isIgnored(raceKey);
+        return (
+          <div className="flex items-center justify-center gap-1.5">
+            {onNavigate && (
+              <button
+                onClick={() => onNavigate('session', buildSessionContext(r.file.fileName, r.session.sessionIndex, r.driver.name))}
+                className="p-1.5 rounded bg-racing-dark hover:bg-racing-highlight/30 text-racing-muted hover:text-white transition-colors cursor-pointer"
+                title="Open session details"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+              </button>
+            )}
+            <button
+              onClick={() => toggleIgnoreJoker(raceKey)}
+              className={`p-1.5 rounded transition-colors cursor-pointer ${
+                ignored
+                  ? 'bg-racing-red/20 text-racing-red hover:bg-racing-red/30'
+                  : 'bg-racing-dark hover:bg-racing-highlight/30 text-racing-muted hover:text-white'
+              }`}
+              title={ignored ? 'Restore to suggestions (Unignore)' : 'Ignore suggestion (Hide from recommendations)'}
+            >
+              {ignored ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+            </button>
+          </div>
+        );
+      },
     },
-  ], [onNavigate, toggleJoker, isConsumed]);
+  ], [onNavigate, toggleJoker, isConsumed, isIgnored, toggleIgnoreJoker]);
 
   return (
     <div className="space-y-6">
@@ -343,12 +390,11 @@ export const JokersView = memo(function JokersView({
         </div>
         <div className="text-xs sm:text-sm text-racing-text space-y-1">
           <p className="font-bold text-white flex items-center gap-2">
-            Local Decision & Simulation Tool
+            Official Ranked Races & Event Jokers Manager
           </p>
           <p className="text-racing-muted leading-relaxed">
-            This manager is a <strong>purely local decision-support and simulation tool</strong> saved in your browser.
-            LMU game log files do not record in-game online menu actions.
-            To actually erase a race result from your official online rating, you must <strong>use your Jokers directly inside the Le Mans Ultimate (LMU) game client</strong>.
+            In Le Mans Ultimate, Event Jokers <strong>exclusively apply to Official Online Ranked Races</strong>. This manager evaluates only your official ranked results and excludes offline / private sessions.
+            To cancel a race rating loss from your official rating, you must <strong>use your Jokers directly inside the Le Mans Ultimate (LMU) game client</strong>.
           </p>
         </div>
       </div>
@@ -391,7 +437,7 @@ export const JokersView = memo(function JokersView({
             <div>
               <div className="text-[10px] uppercase font-mono text-racing-muted/60 font-semibold">Total Earned (Game)</div>
               <div className="text-sm font-bold text-white font-mono">{progression.jokersEarned} / 3 Jokers</div>
-              <div className="text-[10px] text-racing-muted font-mono">{allRaces.length} races completed</div>
+              <div className="text-[10px] text-racing-muted font-mono">{rankedRaces.length} ranked races</div>
             </div>
             <div className="w-px h-8 bg-racing-border/40 mx-1 hidden sm:block" />
             <div>
@@ -403,6 +449,25 @@ export const JokersView = memo(function JokersView({
               <div className="text-[10px] uppercase font-mono text-racing-muted/60 font-semibold">Protected Metrics</div>
               <div className="text-sm font-bold text-emerald-400 font-mono">+{totalProtectedRR} RR · +{totalProtectedSR.toFixed(2)} SR</div>
             </div>
+            {ignoredCount > 0 && (
+              <>
+                <div className="w-px h-8 bg-racing-border/40 mx-1 hidden sm:block" />
+                <div>
+                  <div className="text-[10px] uppercase font-mono text-racing-muted/60 font-semibold">Ignored Suggestions</div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm font-bold text-racing-red font-mono">{ignoredCount}</span>
+                    <button
+                      onClick={clearAllIgnoredJokers}
+                      className="text-[10px] text-racing-purple hover:underline cursor-pointer flex items-center gap-0.5 font-mono"
+                      title="Reset all ignored suggestions"
+                    >
+                      <RotateCcw className="w-2.5 h-2.5" />
+                      <span>Reset</span>
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -416,6 +481,16 @@ export const JokersView = memo(function JokersView({
               <h3 className="font-racing text-sm sm:text-base font-bold text-white tracking-wide">
                 STRATEGIC RECOMMENDATIONS {manualStock > 0 ? `(TOP ${manualStock})` : ''}
               </h3>
+              {ignoredCount > 0 && (
+                <button
+                  onClick={clearAllIgnoredJokers}
+                  className="px-2 py-0.5 rounded text-[11px] font-mono bg-racing-red/10 text-racing-red border border-racing-red/30 hover:bg-racing-red/20 transition-colors cursor-pointer flex items-center gap-1"
+                  title="Click to restore all ignored suggestions"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>{ignoredCount} ignored (Reset)</span>
+                </button>
+              )}
             </div>
             <p className="text-xs text-racing-muted">
               Choose your target goal to rank disaster races by pure rating impact:
@@ -455,8 +530,19 @@ export const JokersView = memo(function JokersView({
           </div>
         ) : topRecommendations.length === 0 ? (
           <div className="text-center py-6 text-racing-muted space-y-1">
-            <p className="text-sm font-medium text-white">All severe candidate races are already marked!</p>
-            <p className="text-xs">No additional un-jokerized disaster races found in your log history.</p>
+            <p className="text-sm font-medium text-white">All severe candidate races are already marked or ignored!</p>
+            <p className="text-xs">
+              No additional un-jokerized disaster races found in your log history.
+              {ignoredCount > 0 && (
+                <button
+                  onClick={clearAllIgnoredJokers}
+                  className="mt-2 inline-flex items-center gap-1 text-xs text-racing-purple hover:underline cursor-pointer"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>Restore {ignoredCount} ignored suggestion{ignoredCount > 1 ? 's' : ''}</span>
+                </button>
+              )}
+            </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -520,10 +606,10 @@ export const JokersView = memo(function JokersView({
                       </p>
                     )}
 
-                    <div className="pt-2">
+                    <div className="pt-2 flex items-center gap-2">
                       <button
                         onClick={() => toggleJoker(raceKey)}
-                        className={`w-full py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                        className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
                           consumed
                             ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30'
                             : 'bg-racing-purple hover:bg-racing-purple/80 text-white'
@@ -537,9 +623,17 @@ export const JokersView = memo(function JokersView({
                         ) : (
                           <>
                             <Flame className="w-3.5 h-3.5" />
-                            Mark This Joker as Used
+                            Mark as Used
                           </>
                         )}
+                      </button>
+                      <button
+                        onClick={() => toggleIgnoreJoker(raceKey)}
+                        className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-racing-darker hover:bg-racing-red/20 hover:text-racing-red text-racing-muted border border-racing-border/60 hover:border-racing-red/40 transition-all cursor-pointer flex items-center justify-center gap-1 shrink-0"
+                        title="Ignore this suggestion (hide from TOP recommendations)"
+                      >
+                        <EyeOff className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Ignore</span>
                       </button>
                     </div>
                   </div>
@@ -552,13 +646,14 @@ export const JokersView = memo(function JokersView({
 
       {/* Main Table of All Races with Switch */}
       <div className="data-card carbon-fiber overflow-hidden">
-        <DataCardHeader title="ALL RACES & JOKERS AUDIT">
+        <DataCardHeader title="OFFICIAL RANKED RACES & JOKERS AUDIT">
           <div className="flex items-center gap-2">
             <FilterButtonGroup
               options={[
-                { value: 'all', label: `All Races (${evaluatedRaces.length})` },
-                { value: 'candidates', label: `Target Candidates ≥35 (${evaluatedRaces.filter(r => (r.jokerImpact?.score ?? 0) >= 35).length})` },
+                { value: 'all', label: `Ranked Races (${evaluatedRaces.length})` },
+                { value: 'candidates', label: `Target Candidates ≥35 (${evaluatedRaces.filter(r => (r.jokerImpact?.score ?? 0) >= 35 && !isIgnored(getRaceKey(r.file.fileName, r.session.sessionIndex, r.driver.name))).length})` },
                 { value: 'consumed', label: `Jokers Active (${consumedCount})` },
+                { value: 'ignored', label: `Ignored (${ignoredCount})` },
               ]}
               value={filter}
               onChange={setFilter}

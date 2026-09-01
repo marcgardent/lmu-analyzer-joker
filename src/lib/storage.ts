@@ -14,6 +14,7 @@ export const KEYS = {
   theme: 'lmu-analyzer-theme',
   trackModeSelected: 'lmu_trackmode_selected', // legacy name — renaming would lose users' stored value
   consumedJokers: 'lmu-analyzer-consumed-jokers',
+  ignoredJokers: 'lmu-analyzer-ignored-jokers',
   userJokerStock: 'lmu-analyzer-user-jokers-stock',
   jokerStrategy: 'lmu-analyzer-joker-strategy',
 } as const;
@@ -256,6 +257,20 @@ export function saveConsumedJokers(consumed: Record<string, boolean>): void {
 export function loadConsumedJokers(): Record<string, boolean> {
   try {
     const raw = lsGet(KEYS.consumedJokers);
+    if (raw) return JSON.parse(raw);
+  } catch {
+    // ignore
+  }
+  return {};
+}
+
+export function saveIgnoredJokers(ignored: Record<string, boolean>): void {
+  lsSet(KEYS.ignoredJokers, JSON.stringify(ignored));
+}
+
+export function loadIgnoredJokers(): Record<string, boolean> {
+  try {
+    const raw = lsGet(KEYS.ignoredJokers);
     if (raw) return JSON.parse(raw);
   } catch {
     // ignore

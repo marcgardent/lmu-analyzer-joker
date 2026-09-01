@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo, type ReactNode } from 'react';
-import { loadConsumedJokers, saveConsumedJokers } from './joker';
+import { loadConsumedJokers, saveConsumedJokers, loadIgnoredJokers, saveIgnoredJokers } from './joker';
 import { loadUserJokerStock, saveUserJokerStock, loadJokerStrategy, saveJokerStrategy } from './storage';
 import type { RaceJokerEvaluation, JokerStrategy } from './types';
 
@@ -15,6 +15,12 @@ interface JokerContextType {
     maxAvailable: number
   ) => void;
   consumedCount: number;
+  ignoredJokers: Record<string, boolean>;
+  isIgnored: (raceKey: string) => boolean;
+  toggleIgnoreJoker: (raceKey: string) => boolean;
+  setIgnoreJoker: (raceKey: string, ignored: boolean) => void;
+  clearAllIgnoredJokers: () => void;
+  ignoredCount: number;
   manualStock: number;
   setManualStock: (stock: number) => void;
   strategy: JokerStrategy;
@@ -26,6 +32,10 @@ const JokerContext = createContext<JokerContextType | null>(null);
 export function JokerProvider({ children }: { children: ReactNode }) {
   const [consumedJokers, setConsumedJokers] = useState<Record<string, boolean>>(() => {
     return loadConsumedJokers();
+  });
+
+  const [ignoredJokers, setIgnoredJokers] = useState<Record<string, boolean>>(() => {
+    return loadIgnoredJokers();
   });
 
   const [manualStock, setManualStockState] = useState<number>(() => {
@@ -51,6 +61,10 @@ export function JokerProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     saveConsumedJokers(consumedJokers);
   }, [consumedJokers]);
+
+  useEffect(() => {
+    saveIgnoredJokers(ignoredJokers);
+  }, [ignoredJokers]);
 
   const isConsumed = useCallback(
     (raceKey: string) => {
@@ -84,6 +98,44 @@ export function JokerProvider({ children }: { children: ReactNode }) {
       }
       return copy;
     });
+  }, []);
+
+  const isIgnored = useCallback(
+    (raceKey: string) => {
+      return Boolean(ignoredJokers[raceKey]);
+    },
+    [ignoredJokers]
+  );
+
+  const toggleIgnoreJoker = useCallback((raceKey: string): boolean => {
+    let nextState = false;
+    setIgnoredJokers(prev => {
+      nextState = !prev[raceKey];
+      const copy = { ...prev };
+      if (nextState) {
+        copy[raceKey] = true;
+      } else {
+        delete copy[raceKey];
+      }
+      return copy;
+    });
+    return nextState;
+  }, []);
+
+  const setIgnoreJoker = useCallback((raceKey: string, ignored: boolean) => {
+    setIgnoredJokers(prev => {
+      const copy = { ...prev };
+      if (ignored) {
+        copy[raceKey] = true;
+      } else {
+        delete copy[raceKey];
+      }
+      return copy;
+    });
+  }, []);
+
+  const clearAllIgnoredJokers = useCallback(() => {
+    setIgnoredJokers({});
   }, []);
 
   const clearAllJokers = useCallback(() => {
@@ -125,6 +177,10 @@ export function JokerProvider({ children }: { children: ReactNode }) {
     return Object.values(consumedJokers).filter(Boolean).length;
   }, [consumedJokers]);
 
+  const ignoredCount = useMemo(() => {
+    return Object.values(ignoredJokers).filter(Boolean).length;
+  }, [ignoredJokers]);
+
   const value = useMemo(
     () => ({
       consumedJokers,
@@ -135,6 +191,12 @@ export function JokerProvider({ children }: { children: ReactNode }) {
       applyJokersToRaces,
       autoOptimizeJokers,
       consumedCount,
+      ignoredJokers,
+      isIgnored,
+      toggleIgnoreJoker,
+      setIgnoreJoker,
+      clearAllIgnoredJokers,
+      ignoredCount,
       manualStock,
       setManualStock,
       strategy,
@@ -149,6 +211,12 @@ export function JokerProvider({ children }: { children: ReactNode }) {
       applyJokersToRaces,
       autoOptimizeJokers,
       consumedCount,
+      ignoredJokers,
+      isIgnored,
+      toggleIgnoreJoker,
+      setIgnoreJoker,
+      clearAllIgnoredJokers,
+      ignoredCount,
       manualStock,
       setManualStock,
       strategy,

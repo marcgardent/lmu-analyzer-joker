@@ -53,7 +53,7 @@ interface RaceResultsViewProps {
 
 export const RaceResultsView = memo(function RaceResultsView({ files, driverNames, onNavigate }: RaceResultsViewProps) {
   const [filter, setFilter] = useState<'all' | 'online' | 'rated' | 'joker_targets' | 'joker_active'>('all');
-  const { isConsumed, toggleJoker, consumedCount, strategy } = useJokers();
+  const { isConsumed, toggleJoker, consumedCount, strategy, isIgnored } = useJokers();
 
   const allResults = useMemo(() => getRaceResults(files, driverNames), [files, driverNames]);
 
@@ -123,10 +123,10 @@ export const RaceResultsView = memo(function RaceResultsView({ files, driverName
     let filtered = allRows;
     if (filter === 'online') filtered = allRows.filter(r => isOnline(r.file));
     if (filter === 'rated') filtered = allRows.filter(r => isRatedRace(r.file));
-    if (filter === 'joker_targets') filtered = allRows.filter(r => r.jokerImpact.score >= 50);
+    if (filter === 'joker_targets') filtered = allRows.filter(r => r.jokerImpact.score >= 50 && !isIgnored(r.raceKey));
     if (filter === 'joker_active') filtered = allRows.filter(r => r.isConsumed);
     return filtered;
-  }, [allRows, filter]);
+  }, [allRows, filter, isIgnored]);
 
   const positionData = useMemo(() => results.map((r, i) => {
     const sessionDate = getSessionDate(r.file, r.session);

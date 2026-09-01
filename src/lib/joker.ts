@@ -4,9 +4,9 @@ import type {
   JokerProgression,
   JokerStrategy,
 } from './types';
-import { loadConsumedJokers, saveConsumedJokers } from './storage';
+import { loadConsumedJokers, saveConsumedJokers, loadIgnoredJokers, saveIgnoredJokers } from './storage';
 
-export { loadConsumedJokers, saveConsumedJokers };
+export { loadConsumedJokers, saveConsumedJokers, loadIgnoredJokers, saveIgnoredJokers };
 
 /**
  * Builds a consistent unique identifier key for a race session row
