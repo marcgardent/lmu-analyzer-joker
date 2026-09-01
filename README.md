@@ -19,6 +19,15 @@ Supports all Le Mans Ultimate car classes: Hypercar, GT3, GTE, and LMP3.
 
 All data stays in your browser — zero server communication. Parsed data is cached in IndexedDB for instant reload.
 
+## 🚀 Fork Enhancements & New Features
+
+This fork introduces powerful competitive analytics and data fidelity improvements tailored for Le Mans Ultimate drivers:
+
+- **Dedicated Safety & Rank Rating (SR & RR) Tracking** — A brand-new dashboard to monitor your SR and RR progression over time, track rating point fluctuations, analyze collision types (vehicle-to-vehicle vs. wall impacts), measure impact severities, and identify circuit danger rankings.
+- **Event Jokers Management & Optimization Engine** — A specialized view to manage and simulate your in-game Event Jokers. It intelligently detects your most damaging disaster races (heavy RR loss, early DNFs, high SR penalties) with multi-strategy optimization modes (*Rating First*, *Safety First*, or *Balanced*) to safeguard your ratings.
+- **Incomplete Session & Early-Departure Tagging** — Clear visual tagging for truncated or incomplete XML logs when a driver leaves a session before official completion, ensuring data transparency and accurate completion statistics.
+- **Standardized Session Timestamps** — Race and session dates are now uniformly anchored to the actual session start time for consistent chronological sorting and timeline alignment.
+
 ## Tech Stack
 
 - React 19 + TypeScript 6
@@ -52,8 +61,4 @@ Le Mans Ultimate exports XML files containing detailed session data — lap time
 
 The app uses the File System Access API to read your race data folder directly (with a file upload fallback for browsers that don't support it). Parsed data is cached locally so you can pick up where you left off.
 
-## Support
 
-If you find this tool useful, consider supporting development:
-
-[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/axrider)

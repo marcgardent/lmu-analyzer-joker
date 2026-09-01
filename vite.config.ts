@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
+  base: './',
   define: {
     __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
   },
@@ -20,8 +21,8 @@ export default defineConfig({
         theme_color: '#0a0a0f',
         background_color: '#0a0a0f',
         display: 'standalone',
-        scope: '/',
-        start_url: '/',
+        scope: './',
+        start_url: './',
         icons: [
           {
             src: 'pwa-192x192.png',
