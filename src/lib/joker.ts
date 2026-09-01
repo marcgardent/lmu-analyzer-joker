@@ -60,7 +60,7 @@ export function computeRaceJokerImpact(
   const rrScore = Math.min(100, Math.round((rrLoss / 100) * 100));
   const srScore = Math.min(100, Math.round((srLoss / 0.50) * 100));
 
-  let rawScore = 0;
+  let rawScore: number;
   if (strategy === 'rr_first') {
     // Pure RR prioritization score
     rawScore = rrScore;
@@ -75,9 +75,9 @@ export function computeRaceJokerImpact(
   const score = Math.min(100, Math.max(0, Math.round(rawScore)));
 
   // Tier classification
-  let tier: RaceJokerTier = 'none';
-  let tierLabel = 'No Impact';
-  let recommendation = '';
+  let tier: RaceJokerTier;
+  let tierLabel: string;
+  let recommendation: string;
 
   if (score >= 80) {
     tier = 'critical';
@@ -147,10 +147,10 @@ export function computeRaceJokerImpact(
  */
 export function getJokerProgression(totalRaces: number, consumedCount: number = 0): JokerProgression {
   const maxJokers = 3;
-  let jokersEarned = 0;
-  let racesToNextJoker = 0;
-  let nextThreshold = 10;
-  let progressPct = 0;
+  let jokersEarned: number;
+  let racesToNextJoker: number;
+  let nextThreshold: number;
+  let progressPct: number;
 
   if (totalRaces < 10) {
     jokersEarned = 0;

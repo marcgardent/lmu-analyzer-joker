@@ -481,9 +481,21 @@ export const JokersView = memo(function JokersView({
                   </div>
 
                   <div className="space-y-2 text-xs">
-                    <div>
-                      <div className="font-bold text-white text-sm">{trackLabel(cand.file.trackCourse)}</div>
-                      <div className="text-racing-muted text-[11px] font-mono">{cand.file.timeString.slice(0, 16).replace('T', ' ')}</div>
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="font-bold text-white text-sm">{trackLabel(cand.file.trackCourse)}</div>
+                        <div className="text-racing-muted text-[11px] font-mono">{cand.file.timeString.slice(0, 16).replace('T', ' ')}</div>
+                      </div>
+                      {onNavigate && (
+                        <button
+                          onClick={() => onNavigate('session', buildSessionContext(cand.file.fileName, cand.session.sessionIndex, cand.driver.name))}
+                          className="px-2 py-1 rounded bg-racing-darker hover:bg-racing-purple/20 hover:border-racing-purple/40 border border-racing-border/40 text-racing-muted hover:text-racing-purple transition-all cursor-pointer flex items-center gap-1 text-[11px] font-mono shrink-0"
+                          title="Open Session Details"
+                        >
+                          <span>Details</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </button>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 bg-racing-darker p-2 rounded border border-racing-border/30">

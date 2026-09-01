@@ -928,7 +928,7 @@ export function computeSRImpact(
   const rawDelta = cleanLapBonus - (vehiclePenalty + wallPenalty + otherPenalty + penaltyDeduction + severityDeduction + dnfDeduction);
   const srImpact = Number(Math.max(-0.50, Math.min(0.30, rawDelta)).toFixed(2));
 
-  let srGrade: 'A+' | 'A' | 'B' | 'C' | 'D' | 'F' = 'C';
+  let srGrade: 'A+' | 'A' | 'B' | 'C' | 'D' | 'F';
   if (totalIncidents === 0 && penaltiesCount === 0 && !isDnf && lapsCompleted > 0) {
     srGrade = 'A+';
   } else if (srImpact >= 0.08) {

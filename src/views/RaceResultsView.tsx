@@ -1,6 +1,6 @@
 import { useState, useMemo, memo } from 'react';
 import { Trophy, TrendingUp, TrendingDown, Minus } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Rectangle } from 'recharts';
 import { ClassBadge } from '../components/ClassBadge';
 import { PositionBadge } from '../components/PositionBadge';
 import { DataCardHeader } from '../components/DataCardHeader';
@@ -366,14 +366,16 @@ export const RaceResultsView = memo(function RaceResultsView({ files, driverName
                   'Position',
                 ]}
               />
-              <Bar dataKey="position" radius={[4, 4, 0, 0]}>
-                {positionData.map((entry, index) => (
-                  <Cell
-                    key={index}
-                    fill={entry.position === 1 ? '#d4a843' : entry.position <= 3 ? '#ff6d00' : entry.position <= 5 ? '#2196f3' : '#6b7280'}
-                  />
-                ))}
-              </Bar>
+              <Bar
+                dataKey="position"
+                radius={[4, 4, 0, 0]}
+                shape={(props: unknown) => {
+                  const p = props as { position?: number; [key: string]: unknown };
+                  const pos = p.position ?? 0;
+                  const fill = pos === 1 ? '#d4a843' : pos <= 3 ? '#ff6d00' : pos <= 5 ? '#2196f3' : '#6b7280';
+                  return <Rectangle {...p} fill={fill} />;
+                }}
+              />
             </BarChart>
           </ResponsiveContainer>
         </div>
