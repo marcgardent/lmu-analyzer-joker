@@ -10,7 +10,8 @@ import { trackLabel } from '../lib/racepace';
 import { getTireWearPerLap, getTopSpeed, isDnf, isIncompleteRace, isDriverIncident, isOnline, isRatedRace, isValidLap, lapTimeStats, computeRRDelta, computeSRImpact, MAX_INT32_SENTINEL } from '../lib/analytics';
 import { formatLapTime, formatSector, formatSpeed, formatEventTime, getChartTooltipStyle, getConsistencyColor, getSessionTypeStyle, CHART_AXIS_TICK, CHART_GRID_STROKE } from '../lib/formatting';
 import { JokerImpactBadge } from '../components/JokerImpactBadge';
-import { computeRaceJokerImpact } from '../lib/joker';
+import { computeRaceJokerImpact, getRaceKey } from '../lib/joker';
+import { useJokers } from '../lib/JokerContext';
 import type { RaceFile, SessionData, DriverResult, LapData } from '../lib/types';
 
 type Tab = 'overview' | 'laps' | 'charts' | 'tyres' | 'incidents' | 'penalties' | 'tracklimits';
@@ -189,6 +190,7 @@ type StandingRow = DriverResult & { driverTopSpeed: number | null; wearPerLap: n
 function DriverSessionCards({ file, session, driver, stats }: {
   file: RaceFile; session: SessionData; driver: DriverResult; stats: StatsData | null;
 }) {
+  const { isConsumed, toggleJoker, strategy } = useJokers();
   const jokerEvaluation = useMemo(() => {
     if (session.type !== 'Race') return null;
     const driverIncidents = session.incidents.filter(i => isDriverIncident(i, driver.name));
@@ -233,8 +235,8 @@ function DriverSessionCards({ file, session, driver, stats }: {
       vehicleContacts,
       isOnline: isOnline(file),
       isRated: isRatedRace(file),
-    });
-  }, [file, session, driver]);
+    }, strategy);
+  }, [file, session, driver, strategy]);
 
   return (
     <div className="space-y-4">
@@ -303,6 +305,8 @@ function DriverSessionCards({ file, session, driver, stats }: {
       {jokerEvaluation && (
         <JokerImpactBadge
           evaluation={jokerEvaluation}
+          isConsumed={isConsumed(getRaceKey(file.fileName, session.sessionIndex, driver.name))}
+          onToggleJoker={() => toggleJoker(getRaceKey(file.fileName, session.sessionIndex, driver.name))}
           variant="detailed"
         />
       )}

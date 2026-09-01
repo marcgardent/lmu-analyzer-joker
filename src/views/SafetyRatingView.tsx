@@ -50,9 +50,8 @@ import {
 } from '../lib/formatting';
 import { buildSessionContext } from '../lib/sessionContext';
 import { trackLabel, trackAlias } from '../lib/racepace';
-import { JokerImpactBadge } from '../components/JokerImpactBadge';
-import { JokerBankCard } from '../components/JokerBankCard';
-import { getJokerProgression } from '../lib/joker';
+import { getRaceKey } from '../lib/joker';
+import { useJokers } from '../lib/JokerContext';
 
 interface SafetyRatingViewProps {
   files: RaceFile[];
@@ -60,7 +59,7 @@ interface SafetyRatingViewProps {
   onNavigate?: (view: string, context?: string) => void;
 }
 
-type QuickSortMode = 'all' | 'most_joker_impact' | 'most_collisions' | 'highest_severity' | 'best_sr' | 'worst_sr' | 'best_rr' | 'worst_rr';
+type QuickSortMode = 'all' | 'most_collisions' | 'highest_severity' | 'best_sr' | 'worst_sr' | 'best_rr' | 'worst_rr';
 
 function getGradeColor(grade: RaceCollisionDetail['srGrade']): string {
   switch (grade) {
@@ -78,6 +77,7 @@ export const SafetyRatingView = memo(function SafetyRatingView({ files, driverNa
   const [filter, setFilter] = useState<'all' | 'online' | 'rated'>('all');
   const [quickSort, setQuickSort] = useState<QuickSortMode>('all');
   const [activeTab, setActiveTab] = useState<'trends' | 'rivalries' | 'tracks'>('trends');
+  const { isConsumed } = useJokers();
 
   // Compute all safety stats
   const fullStats = useMemo(() => getSafetyAndRatingStats(files, driverNames), [files, driverNames]);
@@ -90,8 +90,6 @@ export const SafetyRatingView = memo(function SafetyRatingView({ files, driverNa
 
     const copy = [...list];
     switch (quickSort) {
-      case 'most_joker_impact':
-        return copy.sort((a, b) => (b.jokerImpact?.score ?? 0) - (a.jokerImpact?.score ?? 0) || b.totalIncidents - a.totalIncidents);
       case 'most_collisions':
         return copy.sort((a, b) => b.totalIncidents - a.totalIncidents || b.totalSeverity - a.totalSeverity);
       case 'highest_severity':
@@ -295,46 +293,61 @@ export const SafetyRatingView = memo(function SafetyRatingView({ files, driverNa
       key: 'srImpact',
       label: 'SR Impact',
       align: 'center',
-      width: '100px',
-      sortValue: r => r.srImpact,
-      render: r => (
-        <div className="flex items-center justify-center gap-1.5">
-          <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border ${getGradeColor(r.srGrade)}`}>
-            {r.srGrade}
-          </span>
-          <span className={`font-mono text-xs font-bold ${r.srImpact > 0 ? 'text-racing-green' : r.srImpact < 0 ? 'text-racing-red' : 'text-racing-muted'}`}>
-            {r.srImpact > 0 ? `+${r.srImpact.toFixed(2)}` : r.srImpact.toFixed(2)}
-          </span>
-        </div>
-      ),
+      width: '110px',
+      sortValue: r => {
+        const raceKey = getRaceKey(r.file.fileName, r.session.sessionIndex, r.driver.name);
+        return isConsumed(raceKey) && r.srImpact < 0 ? 0 : r.srImpact;
+      },
+      render: r => {
+        const raceKey = getRaceKey(r.file.fileName, r.session.sessionIndex, r.driver.name);
+        const consumed = isConsumed(raceKey);
+        if (consumed && r.srImpact < 0) {
+          return (
+            <span className="inline-flex items-center gap-1 font-mono text-xs font-bold text-racing-muted/70" title={`Joker Protected: ${r.srImpact.toFixed(2)} SR negated`}>
+              <span>🃏</span>
+              <span className="line-through">{r.srImpact.toFixed(2)} SR</span>
+            </span>
+          );
+        }
+        return (
+          <div className="flex items-center justify-center gap-1.5">
+            <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border ${getGradeColor(r.srGrade)}`}>
+              {r.srGrade}
+            </span>
+            <span className={`font-mono text-xs font-bold ${r.srImpact > 0 ? 'text-racing-green' : r.srImpact < 0 ? 'text-racing-red' : 'text-racing-muted'}`}>
+              {r.srImpact > 0 ? `+${r.srImpact.toFixed(2)}` : r.srImpact.toFixed(2)}
+            </span>
+          </div>
+        );
+      },
     },
     {
       key: 'rrDelta',
       label: 'RR Points',
       align: 'center',
-      width: '90px',
-      sortValue: r => r.rrDelta,
-      render: r => (
-        <span className={`inline-flex items-center gap-0.5 font-mono text-xs font-bold px-2 py-0.5 rounded ${r.rrDelta > 0 ? 'bg-racing-green/10 text-racing-green' : r.rrDelta < 0 ? 'bg-racing-red/10 text-racing-red' : 'bg-racing-dark text-racing-muted'}`}>
-          {r.rrDelta > 0 ? <TrendingUp className="w-3 h-3" /> : r.rrDelta < 0 ? <TrendingDown className="w-3 h-3" /> : null}
-          {r.rrDelta > 0 ? `+${r.rrDelta}` : r.rrDelta}
-        </span>
-      ),
-    },
-    {
-      key: 'jokerImpact',
-      label: 'Joker Impact',
-      align: 'center',
-      width: '115px',
-      sortValue: r => r.jokerImpact?.score ?? 0,
-      render: r => (
-        <div className="flex items-center justify-center">
-          <JokerImpactBadge
-            evaluation={r.jokerImpact!}
-            variant="compact"
-          />
-        </div>
-      ),
+      width: '110px',
+      sortValue: r => {
+        const raceKey = getRaceKey(r.file.fileName, r.session.sessionIndex, r.driver.name);
+        return isConsumed(raceKey) && r.rrDelta < 0 ? 0 : r.rrDelta;
+      },
+      render: r => {
+        const raceKey = getRaceKey(r.file.fileName, r.session.sessionIndex, r.driver.name);
+        const consumed = isConsumed(raceKey);
+        if (consumed && r.rrDelta < 0) {
+          return (
+            <span className="inline-flex items-center gap-1 font-mono text-xs font-bold text-racing-muted/70" title={`Joker Protected: ${r.rrDelta} RR negated`}>
+              <span>🃏</span>
+              <span className="line-through">{r.rrDelta} RR</span>
+            </span>
+          );
+        }
+        return (
+          <span className={`inline-flex items-center gap-0.5 font-mono text-xs font-bold px-2 py-0.5 rounded ${r.rrDelta > 0 ? 'bg-racing-green/10 text-racing-green' : r.rrDelta < 0 ? 'bg-racing-red/10 text-racing-red' : 'bg-racing-dark text-racing-muted'}`}>
+            {r.rrDelta > 0 ? <TrendingUp className="w-3 h-3" /> : r.rrDelta < 0 ? <TrendingDown className="w-3 h-3" /> : null}
+            {r.rrDelta > 0 ? `+${r.rrDelta}` : r.rrDelta}
+          </span>
+        );
+      },
     },
     {
       key: 'laps',
@@ -355,7 +368,7 @@ export const SafetyRatingView = memo(function SafetyRatingView({ files, driverNa
         </span>
       ),
     },
-  ], []);
+  ], [isConsumed]);
 
   // Columns for Rivalries Table
   const rivalriesColumns: Column<CollisionOpponent>[] = useMemo(() => [
@@ -458,18 +471,8 @@ export const SafetyRatingView = memo(function SafetyRatingView({ files, driverNa
     },
   ], []);
 
-  // Progression
-  const progression = useMemo(() => getJokerProgression(fullStats.totalRaces), [fullStats.totalRaces]);
-
   return (
     <div className="space-y-6">
-      {/* Joker Bank Widget */}
-      <JokerBankCard
-        progression={progression}
-        topCandidate={fullStats.raceDetails.find(r => (r.jokerImpact?.score ?? 0) >= 65)}
-        onNavigateRace={onNavigate ? (fileName, sessionIndex, driverName) => onNavigate('session', buildSessionContext(fileName, sessionIndex, driverName)) : undefined}
-      />
-
       {/* Filters and Quick Actions Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <FilterButtonGroup
@@ -487,7 +490,6 @@ export const SafetyRatingView = memo(function SafetyRatingView({ files, driverNa
           <span className="text-racing-muted/60 text-[11px] uppercase tracking-wider font-semibold mr-1">Sort by:</span>
           {[
             { id: 'all', label: 'Latest' },
-            { id: 'most_joker_impact', label: '🃏 Max Joker Impact' },
             { id: 'most_collisions', label: '💥 Max Collisions' },
             { id: 'highest_severity', label: '⚡ Max Impact' },
             { id: 'best_sr', label: '🛡️ Cleanest (SR+)' },

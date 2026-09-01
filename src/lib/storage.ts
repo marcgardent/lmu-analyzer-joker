@@ -13,6 +13,9 @@ export const KEYS = {
   benchmarks: 'lmu-analyzer-benchmarks',
   theme: 'lmu-analyzer-theme',
   trackModeSelected: 'lmu_trackmode_selected', // legacy name — renaming would lose users' stored value
+  consumedJokers: 'lmu-analyzer-consumed-jokers',
+  userJokerStock: 'lmu-analyzer-user-jokers-stock',
+  jokerStrategy: 'lmu-analyzer-joker-strategy',
 } as const;
 
 // Bump when the cached RaceFile shape changes — mismatched (or unversioned) caches are discarded.
@@ -244,4 +247,47 @@ export async function clearDirectoryHandle() {
   } catch {
     // ignore
   }
+}
+
+export function saveConsumedJokers(consumed: Record<string, boolean>): void {
+  lsSet(KEYS.consumedJokers, JSON.stringify(consumed));
+}
+
+export function loadConsumedJokers(): Record<string, boolean> {
+  try {
+    const raw = lsGet(KEYS.consumedJokers);
+    if (raw) return JSON.parse(raw);
+  } catch {
+    // ignore
+  }
+  return {};
+}
+
+export function saveUserJokerStock(stock: number): void {
+  lsSet(KEYS.userJokerStock, stock.toString());
+}
+
+export function loadUserJokerStock(): number {
+  try {
+    const raw = lsGet(KEYS.userJokerStock);
+    if (raw !== null) {
+      const parsed = parseInt(raw, 10);
+      if (!isNaN(parsed) && parsed >= 0 && parsed <= 3) return parsed;
+    }
+  } catch {
+    // ignore
+  }
+  return 1; // Default to 1 if not set
+}
+
+export function saveJokerStrategy(strategy: 'rr_first' | 'sr_first' | 'balanced'): void {
+  lsSet(KEYS.jokerStrategy, strategy);
+}
+
+export function loadJokerStrategy(): 'rr_first' | 'sr_first' | 'balanced' {
+  const raw = lsGet(KEYS.jokerStrategy);
+  if (raw === 'rr_first' || raw === 'sr_first' || raw === 'balanced') {
+    return raw;
+  }
+  return 'rr_first'; // Default strategy
 }

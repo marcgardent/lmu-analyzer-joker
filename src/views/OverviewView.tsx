@@ -9,8 +9,6 @@ import { getOverviewStats, type TrackStats, type CarStats } from '../lib/analyti
 import { formatLapTime, formatSector, formatDistance } from '../lib/formatting';
 import { useDataIndex } from '../lib/useDataIndex';
 import { trackLabel } from '../lib/racepace';
-import { JokerBankCard } from '../components/JokerBankCard';
-import { getJokerProgression } from '../lib/joker';
 import type { RaceFile } from '../lib/types';
 
 const trackColumns: Column<TrackStats>[] = [
@@ -96,16 +94,6 @@ export const OverviewView = memo(function OverviewView({ files, driverNames, onN
 
   return (
     <div className="space-y-5">
-      {/* Event Jokers Tracker */}
-      {stats.totalRaces > 0 && (
-        <div className="animate-in animate-in-1">
-          <JokerBankCard
-            progression={getJokerProgression(stats.totalRaces)}
-            compact
-          />
-        </div>
-      )}
-
       {/* Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <div className="animate-in animate-in-1">

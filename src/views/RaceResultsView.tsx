@@ -9,7 +9,6 @@ import { SortableTable, type Column } from '../components/SortableTable';
 import { ExportButton } from '../components/ExportButton';
 import { StatCard } from '../components/StatCard';
 import { JokerImpactBadge } from '../components/JokerImpactBadge';
-import { JokerBankCard } from '../components/JokerBankCard';
 import {
   getRaceResults,
   isDnf,
@@ -21,18 +20,21 @@ import {
   computeSRImpact,
   type RaceResult,
 } from '../lib/analytics';
-import { computeRaceJokerImpact, getJokerProgression } from '../lib/joker';
+import { computeRaceJokerImpact, getRaceKey } from '../lib/joker';
+import { useJokers } from '../lib/JokerContext';
 import { formatLapTime, getChartTooltipStyle, CHART_AXIS_TICK, CHART_GRID_STROKE } from '../lib/formatting';
 import { buildSessionContext } from '../lib/sessionContext';
 import { trackLabel, trackAlias } from '../lib/racepace';
-import type { RaceFile, RaceJokerEvaluation, RaceCollisionDetail } from '../lib/types';
+import type { RaceFile, RaceJokerEvaluation } from '../lib/types';
 
 type RaceRow = RaceResult & {
+  raceKey: string;
   incidentCount: number;
   driverPenalties: RaceResult['session']['penalties'];
   jokerImpact: RaceJokerEvaluation;
   rrDelta: number;
   srImpact: number;
+  isConsumed: boolean;
 };
 
 interface RaceResultsViewProps {
@@ -42,12 +44,15 @@ interface RaceResultsViewProps {
 }
 
 export const RaceResultsView = memo(function RaceResultsView({ files, driverNames, onNavigate }: RaceResultsViewProps) {
-  const [filter, setFilter] = useState<'all' | 'online' | 'rated' | 'joker_targets'>('all');
+  const [filter, setFilter] = useState<'all' | 'online' | 'rated' | 'joker_targets' | 'joker_active'>('all');
+  const { isConsumed, toggleJoker, consumedCount, strategy } = useJokers();
 
   const allResults = useMemo(() => getRaceResults(files, driverNames), [files, driverNames]);
 
   const allRows = useMemo(() => {
     return allResults.map((r): RaceRow => {
+      const raceKey = getRaceKey(r.file.fileName, r.session.sessionIndex, r.driver.name);
+      const consumed = isConsumed(raceKey);
       const driverIncidents = r.session.incidents.filter(i => isDriverIncident(i, r.driver.name));
       const driverPenalties = r.session.penalties.filter(p => p.driver === r.driver.name);
       const totalSeverity = driverIncidents.reduce((sum, i) => sum + i.severity, 0);
@@ -58,6 +63,8 @@ export const RaceResultsView = memo(function RaceResultsView({ files, driverName
       }).length;
 
       const dnf = isDnf(r.driver.finishStatus);
+      const classDrivers = r.session.drivers.filter(d => d.carClass === r.driver.carClass).length;
+
       const { srImpact } = computeSRImpact(
         driverIncidents.length,
         vehicleContacts,
@@ -69,8 +76,8 @@ export const RaceResultsView = memo(function RaceResultsView({ files, driverName
       );
 
       const rrDelta = computeRRDelta(
-        r.driver.classPosition,
-        r.classDrivers,
+        r.classPosition,
+        classDrivers,
         r.driver.classGridPosition,
         dnf
       );
@@ -89,24 +96,27 @@ export const RaceResultsView = memo(function RaceResultsView({ files, driverName
         vehicleContacts,
         isOnline: isOnline(r.file),
         isRated: isRatedRace(r.file),
-      });
+      }, strategy);
 
       return {
         ...r,
+        raceKey,
         incidentCount: driverIncidents.length,
         driverPenalties,
         jokerImpact,
         rrDelta,
         srImpact,
+        isConsumed: consumed,
       };
     });
-  }, [allResults]);
+  }, [allResults, isConsumed, strategy]);
 
   const results = useMemo(() => {
     let filtered = allRows;
     if (filter === 'online') filtered = allRows.filter(r => isOnline(r.file));
     if (filter === 'rated') filtered = allRows.filter(r => isRatedRace(r.file));
     if (filter === 'joker_targets') filtered = allRows.filter(r => r.jokerImpact.score >= 50);
+    if (filter === 'joker_active') filtered = allRows.filter(r => r.isConsumed);
     return filtered;
   }, [allRows, filter]);
 
@@ -127,70 +137,37 @@ export const RaceResultsView = memo(function RaceResultsView({ files, driverName
     : '--';
   const dnfs = results.filter(r => isDnf(r.driver.finishStatus)).length;
 
-  const progression = useMemo(() => getJokerProgression(allResults.length), [allResults.length]);
-
-  const topTargetRace = useMemo((): RaceCollisionDetail | null => {
-    const candidates = [...allRows].sort((a, b) => b.jokerImpact.score - a.jokerImpact.score);
-    if (candidates.length === 0 || candidates[0].jokerImpact.score < 50) return null;
-    const top = candidates[0];
-    return {
-      file: top.file,
-      session: top.session,
-      driver: top.driver,
-      vehicleContacts: 0,
-      wallContacts: 0,
-      otherContacts: 0,
-      totalIncidents: top.incidentCount,
-      totalSeverity: 0,
-      penaltiesCount: top.driverPenalties.length,
-      trackLimitsCount: 0,
-      opponents: [],
-      incidentsPerLap: 0,
-      srImpact: top.srImpact,
-      srGrade: 'C',
-      rrDelta: top.rrDelta,
-      isOnline: isOnline(top.file),
-      isRated: isRatedRace(top.file),
-      position: top.position,
-      classPosition: top.classPosition,
-      gridPosition: top.driver.gridPosition,
-      classGridPosition: top.driver.classGridPosition,
-      positionGain: top.driver.classGridPosition ? top.driver.classGridPosition - top.classPosition : null,
-      totalDrivers: top.totalDrivers,
-      classDrivers: top.classDrivers,
-      lapsCompleted: top.driver.totalLaps,
-      finishStatus: top.driver.finishStatus,
-      isDnf: isDnf(top.driver.finishStatus),
-      jokerImpact: top.jokerImpact,
-    };
-  }, [allRows]);
-
   const raceColumns: Column<RaceRow>[] = useMemo(() => [
     {
       key: 'date',
       label: 'Date',
       width: '12%',
       sortValue: r => r.file.timeString,
-      render: r => <span className="text-racing-muted text-xs font-mono">{r.file.timeString}</span>,
+      render: r => (
+        <span className="text-racing-muted font-mono text-xs whitespace-nowrap">
+          {r.file.timeString.slice(0, 16).replace('T', ' ')}
+        </span>
+      ),
     },
     {
       key: 'track',
       label: 'Track',
-      width: '16%',
+      width: '20%',
       sortValue: r => r.file.trackCourse,
-      render: r => <span className="text-white font-medium">{trackLabel(r.file.trackCourse)}</span>,
-    },
-    {
-      key: 'car',
-      label: 'Car',
-      width: '16%',
-      sortValue: r => r.driver.carType,
       render: r => (
-        <div className="flex items-center gap-2">
-          <span className="text-racing-text text-xs">{r.driver.carType}</span>
-          <ClassBadge carClass={r.driver.carClass} />
+        <div className="flex flex-col">
+          <span className="text-white font-medium">{trackLabel(r.file.trackCourse)}</span>
+          <span className="text-[10px] text-racing-muted">{r.driver.carType}</span>
         </div>
       ),
+    },
+    {
+      key: 'class',
+      label: 'Class',
+      align: 'center',
+      width: '8%',
+      sortValue: r => r.driver.carClass,
+      render: r => <ClassBadge carClass={r.driver.carClass} />,
     },
     {
       key: 'grid',
@@ -233,15 +210,61 @@ export const RaceResultsView = memo(function RaceResultsView({ files, driverName
       },
     },
     {
-      key: 'jokerImpact',
-      label: 'Joker Impact',
+      key: 'rrImpact',
+      label: 'Rating (RR)',
       align: 'center',
-      width: '120px',
-      sortValue: r => r.jokerImpact.score,
+      width: '110px',
+      sortValue: r => (r.isConsumed && r.rrDelta < 0 ? 0 : r.rrDelta),
+      render: r => {
+        if (r.isConsumed && r.rrDelta < 0) {
+          return (
+            <span className="inline-flex items-center gap-1 font-mono text-xs font-bold text-racing-muted/70" title={`Joker Protected: ${r.rrDelta} RR negated`}>
+              <span>🃏</span>
+              <span className="line-through">{r.rrDelta} RR</span>
+            </span>
+          );
+        }
+        return (
+          <span className={`font-mono text-xs font-bold px-2 py-0.5 rounded ${r.rrDelta > 0 ? 'bg-racing-green/10 text-racing-green' : r.rrDelta < 0 ? 'bg-racing-red/10 text-racing-red' : 'bg-racing-dark text-racing-muted'}`}>
+            {r.rrDelta > 0 ? `+${r.rrDelta}` : r.rrDelta} RR
+          </span>
+        );
+      },
+    },
+    {
+      key: 'srImpact',
+      label: 'Safety (SR)',
+      align: 'center',
+      width: '110px',
+      sortValue: r => (r.isConsumed && r.srImpact < 0 ? 0 : r.srImpact),
+      render: r => {
+        if (r.isConsumed && r.srImpact < 0) {
+          return (
+            <span className="inline-flex items-center gap-1 font-mono text-xs font-bold text-racing-muted/70" title={`Joker Protected: ${r.srImpact.toFixed(2)} SR negated`}>
+              <span>🃏</span>
+              <span className="line-through">{r.srImpact.toFixed(2)} SR</span>
+            </span>
+          );
+        }
+        return (
+          <span className={`font-mono text-xs font-bold ${r.srImpact > 0 ? 'text-racing-green' : r.srImpact < 0 ? 'text-racing-red' : 'text-racing-muted'}`}>
+            {r.srImpact > 0 ? `+${r.srImpact.toFixed(2)}` : r.srImpact.toFixed(2)}
+          </span>
+        );
+      },
+    },
+    {
+      key: 'jokerImpact',
+      label: 'Joker Action',
+      align: 'center',
+      width: '130px',
+      sortValue: r => (r.isConsumed ? 999 : r.jokerImpact.score),
       render: r => (
         <div className="flex items-center justify-center">
           <JokerImpactBadge
             evaluation={r.jokerImpact}
+            isConsumed={r.isConsumed}
+            onToggleJoker={() => toggleJoker(r.raceKey)}
             variant="compact"
           />
         </div>
@@ -291,17 +314,10 @@ export const RaceResultsView = memo(function RaceResultsView({ files, driverName
       sortValue: r => r.driver.finishStatus,
       render: r => <span className={`text-xs ${!isDnf(r.driver.finishStatus) ? 'text-racing-green' : 'text-racing-red'}`}>{r.driver.finishStatus || 'Finished'}</span>,
     },
-  ], []);
+  ], [toggleJoker]);
 
   return (
     <div className="space-y-6">
-      {/* Joker Inventory Card */}
-      <JokerBankCard
-        progression={progression}
-        topCandidate={topTargetRace}
-        onNavigateRace={onNavigate ? (fileName, sessionIndex, driverName) => onNavigate('session', buildSessionContext(fileName, sessionIndex, driverName)) : undefined}
-      />
-
       {/* Filter & Options */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <FilterButtonGroup
@@ -309,7 +325,8 @@ export const RaceResultsView = memo(function RaceResultsView({ files, driverName
             { value: 'all', label: 'All Races' },
             { value: 'online', label: 'Online' },
             { value: 'rated', label: 'Rated' },
-            { value: 'joker_targets', label: '🃏 Joker Targets (Score ≥ 50)' },
+            { value: 'joker_targets', label: '🎯 Joker Targets (Score ≥ 50)' },
+            { value: 'joker_active', label: `🔥 Active Jokers (${consumedCount})` },
           ]}
           value={filter}
           onChange={setFilter}

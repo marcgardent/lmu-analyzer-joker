@@ -5,9 +5,7 @@ import { DataCardHeader } from '../components/DataCardHeader';
 import { SortableTable, type Column } from '../components/SortableTable';
 import { ExportButton } from '../components/ExportButton';
 import { StatCard } from '../components/StatCard';
-import { JokerBankCard } from '../components/JokerBankCard';
 import { getDriverProfileStats, type DriverProfileStats, type TrackBest } from '../lib/analytics';
-import { getJokerProgression } from '../lib/joker';
 import { formatLapTime, formatSector, formatDistance } from '../lib/formatting';
 import { saveProfileName, loadProfileName, saveProfileAvatar, loadProfileAvatar, clearProfileAvatar, KEYS, lsGet, lsSet } from '../lib/storage';
 import { useClickOutside } from '../lib/useClickOutside';
@@ -318,26 +316,22 @@ export const DriverProfileView = memo(function DriverProfileView({ files, driver
                 onBlur={commitName}
                 onKeyDown={e => { if (e.key === 'Enter') commitName(); if (e.key === 'Escape') { setNameInput(displayName); setEditingName(false); } }}
                 className="font-racing text-2xl text-white tracking-wide bg-transparent border-b-2 border-racing-red/50 outline-none w-full"
+                autoFocus
               />
             ) : (
-              <button
-                onClick={() => { setNameInput(displayName); setEditingName(true); }}
-                className="flex items-center gap-2 group/name cursor-pointer"
-              >
+              <div className="flex items-center gap-2">
                 <h2 className="font-racing text-2xl text-white tracking-wide truncate">{displayName}</h2>
-                <Pencil className="w-3.5 h-3.5 text-racing-muted opacity-0 group-hover/name:opacity-100 transition-opacity shrink-0" />
-              </button>
+                <button
+                  onClick={() => { setNameInput(displayName); setEditingName(true); }}
+                  className="p-1 text-racing-muted hover:text-white transition-colors cursor-pointer"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+              </div>
             )}
-            <p className="text-racing-muted text-xs mt-1 font-mono">
-              {profile.tracksVisited} tracks &middot; {profile.carsUsed} cars &middot; {profile.totalSessions} sessions
-            </p>
+            <p className="text-racing-muted text-xs font-mono mt-0.5">LMU Driver Profile</p>
           </div>
         </div>
-      </div>
-
-      {/* Event Joker Inventory */}
-      <div className="animate-in animate-in-2">
-        <JokerBankCard progression={getJokerProgression(profile.total.races)} />
       </div>
 
       {/* All Race Stats */}

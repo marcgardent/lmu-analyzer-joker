@@ -176,7 +176,10 @@ export interface RaceCollisionDetail {
   finishStatus: string;
   isDnf: boolean;
   jokerImpact?: RaceJokerEvaluation;
+  isJokerConsumed?: boolean;
 }
+
+export type JokerStrategy = 'rr_first' | 'sr_first' | 'balanced';
 
 export type RaceJokerTier = 'critical' | 'high' | 'moderate' | 'low' | 'none';
 
@@ -190,11 +193,16 @@ export interface RaceJokerEvaluation {
   dnfProtected: boolean;
   positionDrop: number;
   reasons: string[];
+  rrScore?: number;
+  srScore?: number;
+  strategy?: JokerStrategy;
 }
 
 export interface JokerProgression {
   totalRaces: number;
   jokersEarned: number;
+  jokersConsumed: number;
+  jokersAvailable: number;
   maxJokers: number;
   racesToNextJoker: number;
   nextThreshold: number;
@@ -216,6 +224,9 @@ export interface SafetySummaryStats {
   totalLaps: number;
   estimatedNetSR: number;
   estimatedNetRR: number;
+  estimatedProtectedRR?: number;
+  estimatedProtectedSR?: number;
+  consumedJokersCount?: number;
   mostChaoticRace: RaceCollisionDetail | null;
   cleanestRace: RaceCollisionDetail | null;
   highestRRGainRace: RaceCollisionDetail | null;

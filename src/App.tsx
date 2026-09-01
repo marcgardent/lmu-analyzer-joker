@@ -12,6 +12,7 @@ import { TrackModeView } from './views/TrackModeView';
 import { CarsView } from './views/CarsView';
 import { RaceResultsView } from './views/RaceResultsView';
 import { SafetyRatingView } from './views/SafetyRatingView';
+import { JokersView } from './views/JokersView';
 import { DriverProfileView } from './views/DriverProfileView';
 import { RacePaceView } from './views/RacePaceView';
 import { AboutView } from './views/AboutView';
@@ -20,6 +21,7 @@ import { getAllDrivers, detectPlayerDrivers, filterFilesByClasses, deduplicateSe
 import { errorMessage } from './lib/formatting';
 import { parseSessionContext } from './lib/sessionContext';
 import { DataIndexProvider } from './lib/DataIndexContext';
+import { JokerProvider } from './lib/JokerContext';
 import * as storage from './lib/storage';
 import { useTheme } from './lib/useTheme';
 import type { RaceFile, DriverSummary, CarClass } from './lib/types';
@@ -403,21 +405,24 @@ function App() {
             <p className="text-sm mt-1">Select at least one driver from the dropdown above.</p>
           </div>
         ) : (
-          <DataIndexProvider files={filteredFiles} driverNames={selectedDrivers}>
-            {activeView === 'overview' && <OverviewView files={filteredFiles} driverNames={selectedDrivers} onNavigate={navigateTo} />}
-            {activeView === 'bests' && <PersonalBestsView files={filteredFiles} driverNames={selectedDrivers} onNavigate={navigateTo} />}
-            {activeView === 'sessions' && <SessionsView files={filteredFiles} driverNames={selectedDrivers} onNavigate={navigateTo} />}
-            {activeView === 'session' && sessionDetail && (
-              <SessionDetailView file={sessionDetail.file} session={sessionDetail.session} driver={sessionDetail.driver} onBack={handleSessionBack} onNavigate={navigateTo} playerNames={selectedDrivers} />
-            )}
-            {activeView === 'tracks' && <TracksView files={filteredFiles} driverNames={selectedDrivers} initialTrack={viewContext} onNavigate={navigateTo} />}
-            {activeView === 'cars' && <CarsView files={filteredFiles} driverNames={selectedDrivers} initialCar={viewContext} onNavigate={navigateTo} />}
-            {activeView === 'benchmarks' && <RacePaceView files={filteredFiles} driverNames={selectedDrivers} onNavigate={navigateTo} onViewChange={setActiveView} />}
-            {activeView === 'trackmode' && <TrackModeView files={filteredFiles} driverNames={selectedDrivers} initialTrack={viewContext} onNavigate={navigateTo} onViewChange={setActiveView} />}
-            {activeView === 'races' && <RaceResultsView files={filteredFiles} driverNames={selectedDrivers} onNavigate={navigateTo} />}
-            {activeView === 'safety' && <SafetyRatingView files={filteredFiles} driverNames={selectedDrivers} onNavigate={navigateTo} />}
-            {activeView === 'profile' && <DriverProfileView files={filteredFiles} driverNames={selectedDrivers} />}
-          </DataIndexProvider>
+          <JokerProvider>
+            <DataIndexProvider files={filteredFiles} driverNames={selectedDrivers}>
+              {activeView === 'overview' && <OverviewView files={filteredFiles} driverNames={selectedDrivers} onNavigate={navigateTo} />}
+              {activeView === 'bests' && <PersonalBestsView files={filteredFiles} driverNames={selectedDrivers} onNavigate={navigateTo} />}
+              {activeView === 'sessions' && <SessionsView files={filteredFiles} driverNames={selectedDrivers} onNavigate={navigateTo} />}
+              {activeView === 'session' && sessionDetail && (
+                <SessionDetailView file={sessionDetail.file} session={sessionDetail.session} driver={sessionDetail.driver} onBack={handleSessionBack} onNavigate={navigateTo} playerNames={selectedDrivers} />
+              )}
+              {activeView === 'tracks' && <TracksView files={filteredFiles} driverNames={selectedDrivers} initialTrack={viewContext} onNavigate={navigateTo} />}
+              {activeView === 'cars' && <CarsView files={filteredFiles} driverNames={selectedDrivers} initialCar={viewContext} onNavigate={navigateTo} />}
+              {activeView === 'benchmarks' && <RacePaceView files={filteredFiles} driverNames={selectedDrivers} onNavigate={navigateTo} onViewChange={setActiveView} />}
+              {activeView === 'trackmode' && <TrackModeView files={filteredFiles} driverNames={selectedDrivers} initialTrack={viewContext} onNavigate={navigateTo} onViewChange={setActiveView} />}
+              {activeView === 'races' && <RaceResultsView files={filteredFiles} driverNames={selectedDrivers} onNavigate={navigateTo} />}
+              {activeView === 'safety' && <SafetyRatingView files={filteredFiles} driverNames={selectedDrivers} onNavigate={navigateTo} />}
+              {activeView === 'jokers' && <JokersView files={filteredFiles} driverNames={selectedDrivers} onNavigate={navigateTo} />}
+              {activeView === 'profile' && <DriverProfileView files={filteredFiles} driverNames={selectedDrivers} />}
+            </DataIndexProvider>
+          </JokerProvider>
         )}
       </main>
 

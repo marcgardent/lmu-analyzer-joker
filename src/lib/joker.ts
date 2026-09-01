@@ -2,7 +2,11 @@ import type {
   RaceJokerTier,
   RaceJokerEvaluation,
   JokerProgression,
+  JokerStrategy,
 } from './types';
+import { loadConsumedJokers, saveConsumedJokers } from './storage';
+
+export { loadConsumedJokers, saveConsumedJokers };
 
 /**
  * Builds a consistent unique identifier key for a race session row
@@ -28,16 +32,16 @@ export interface JokerImpactParams {
 }
 
 /**
- * Computes the "Race Joker Impact" (0-100 score & evaluation) indicating
- * how beneficial consuming an Event Joker would be on this specific race.
- *
- * Factors evaluated:
- * 1. Rank Rating (RR) Points loss: Up to 45 pts
- * 2. DNF / Connection / Hardware failure: Up to 25 pts
- * 3. Safety Rating (SR) degradation & collision force: Up to 20 pts
- * 4. Grid-to-finish position collapse: Up to 10 pts
+ * Computes the "Race Joker Impact" (0-100 score & evaluation) based on
+ * normalized Rank Rating (RR) and Safety Rating (SR) losses under a chosen strategy:
+ * - 'rr_first': 85% RR Loss + 15% SR Loss (protects Elo rating & leaderboard standing)
+ * - 'sr_first': 85% SR Loss + 15% RR Loss (protects safety license & prevents demotion)
+ * - 'balanced': 50% RR Loss + 50% SR Loss (balanced protection across both metrics)
  */
-export function computeRaceJokerImpact(params: JokerImpactParams): RaceJokerEvaluation {
+export function computeRaceJokerImpact(
+  params: JokerImpactParams,
+  strategy: JokerStrategy = 'rr_first'
+): RaceJokerEvaluation {
   const {
     rrDelta,
     srImpact,
@@ -45,60 +49,29 @@ export function computeRaceJokerImpact(params: JokerImpactParams): RaceJokerEval
     lapsCompleted,
     classPosition,
     classGridPosition,
-    penaltiesCount = 0,
-    totalSeverity = 0,
-    vehicleContacts = 0,
   } = params;
 
-  // 1. Rank Rating Loss (0 to 45 pts)
-  let rrPointsProtected = 0;
-  let rrLossPts = 0;
-  if (rrDelta < 0) {
-    rrPointsProtected = Math.abs(rrDelta);
-    // Scales: -50 RR -> 45 pts; -25 RR -> 22.5 pts
-    rrLossPts = Math.min(45, (rrPointsProtected / 50) * 45);
+  const rrLoss = rrDelta < 0 ? Math.abs(rrDelta) : 0;
+  const srLoss = srImpact < 0 ? Math.abs(srImpact) : 0;
+
+  // Normalized component scores (0 to 100):
+  // -100 RR is severe rating loss -> 100 pts (linear scaling up to 100 RR)
+  // -0.50 SR is severe safety loss -> 100 pts (linear scaling up to 0.50 SR)
+  const rrScore = Math.min(100, Math.round((rrLoss / 100) * 100));
+  const srScore = Math.min(100, Math.round((srLoss / 0.50) * 100));
+
+  let rawScore = 0;
+  if (strategy === 'rr_first') {
+    // Pure RR prioritization score
+    rawScore = rrScore;
+  } else if (strategy === 'sr_first') {
+    // Pure SR prioritization score
+    rawScore = srScore;
+  } else {
+    // Balanced 50/50 composite score
+    rawScore = 0.50 * rrScore + 0.50 * srScore;
   }
 
-  // 2. DNF / Disconnection / Hardware Failure (0 to 25 pts)
-  let dnfPts = 0;
-  if (isDnf) {
-    dnfPts = 20;
-    // Extra penalty protection if crashed/disconnected within first 2 laps
-    if (lapsCompleted <= 2) {
-      dnfPts += 5;
-    }
-  }
-
-  // 3. Safety Rating & Incidents (0 to 20 pts)
-  let srProtected = 0;
-  let srLossPts = 0;
-  if (srImpact < 0) {
-    srProtected = Math.abs(Number(srImpact.toFixed(2)));
-    // Scales: -0.40 SR -> 15 pts; -0.20 SR -> 7.5 pts
-    srLossPts = Math.min(15, (srProtected / 0.40) * 15);
-  }
-  if (penaltiesCount > 0 || totalSeverity > 10000 || vehicleContacts >= 3) {
-    srLossPts += 5;
-  }
-  srLossPts = Math.min(20, srLossPts);
-
-  // 4. Position Drop / Grid Collapse (0 to 10 pts)
-  let positionDrop = 0;
-  let posPts = 0;
-  if (typeof classGridPosition === 'number' && classGridPosition > 0) {
-    positionDrop = Math.max(0, classPosition - classGridPosition);
-    if (positionDrop > 0) {
-      if (classGridPosition <= 3) {
-        // Severe drop from podium start
-        posPts = Math.min(10, positionDrop * 2.5);
-      } else {
-        posPts = Math.min(10, positionDrop * 1.5);
-      }
-    }
-  }
-
-  // Combined score (0 - 100)
-  const rawScore = rrLossPts + dnfPts + srLossPts + posPts;
   const score = Math.min(100, Math.max(0, Math.round(rawScore)));
 
   // Tier classification
@@ -106,56 +79,47 @@ export function computeRaceJokerImpact(params: JokerImpactParams): RaceJokerEval
   let tierLabel = 'No Impact';
   let recommendation = '';
 
-  if (score >= 85) {
+  if (score >= 80) {
     tier = 'critical';
     tierLabel = 'Prime Target';
-    recommendation = '🚨 TOP PRIORITY: Burning a Joker here recovers maximum ranking points and wipes out DNF penalty.';
-  } else if (score >= 65) {
+    recommendation = `🚨 TOP PRIORITY: Burning a Joker here recovers ${rrLoss} RR and ${srLoss.toFixed(2)} SR.`;
+  } else if (score >= 50) {
     tier = 'high';
     tierLabel = 'High Impact';
-    recommendation = '⚡ RECOMMENDED: High-value Joker candidate to protect your ranking & safety trajectory.';
-  } else if (score >= 40) {
+    recommendation = `⚡ RECOMMENDED: High-value Joker candidate recovering ${rrLoss} RR and ${srLoss.toFixed(2)} SR.`;
+  } else if (score >= 25) {
     tier = 'moderate';
     tierLabel = 'Moderate';
-    recommendation = '⚠️ SITUATIONAL: Worth considering if you have surplus Jokers or need to protect a winning streak.';
-  } else if (score >= 15) {
+    recommendation = '⚠️ SITUATIONAL: Worth considering if you have surplus Jokers.';
+  } else if (score >= 10) {
     tier = 'low';
     tierLabel = 'Low Impact';
-    recommendation = 'ℹ️ LOW VALUE: Minor rating loss; save your rare Jokers for worse disaster races.';
+    recommendation = 'ℹ️ LOW VALUE: Minor rating loss; save your Jokers for worse disaster races.';
   } else {
     tier = 'none';
     tierLabel = 'No Impact';
     recommendation = '⛔ DO NOT USE: Race was positive or neutral; burning a Joker would be wasted.';
   }
 
-  // Build bullet reasons
   const reasons: string[] = [];
-  if (rrDelta < -20) {
-    reasons.push(`Heavy Rank Rating drop (${rrDelta} RR points lost)`);
-  } else if (rrDelta < 0) {
-    reasons.push(`Moderate Rank Rating drop (${rrDelta} RR points)`);
+  if (strategy === 'rr_first') {
+    if (rrLoss > 0) reasons.push(`-${rrLoss} RR points lost`);
+    if (srLoss > 0) reasons.push(`-${srLoss.toFixed(2)} SR penalty`);
+  } else if (strategy === 'sr_first') {
+    if (srLoss > 0) reasons.push(`-${srLoss.toFixed(2)} SR penalty`);
+    if (rrLoss > 0) reasons.push(`-${rrLoss} RR points lost`);
+  } else {
+    if (rrLoss > 0) reasons.push(`-${rrLoss} RR`);
+    if (srLoss > 0) reasons.push(`-${srLoss.toFixed(2)} SR`);
   }
 
   if (isDnf) {
-    reasons.push(lapsCompleted <= 2 ? 'Early DNF / Turn 1 Disconnect' : 'Did Not Finish (DNF)');
+    reasons.push(lapsCompleted <= 2 ? 'Early DNF' : 'DNF');
   }
 
-  if (srImpact <= -0.15) {
-    reasons.push(`Severe Safety Rating penalty (${srImpact.toFixed(2)} SR)`);
-  } else if (srImpact < 0) {
-    reasons.push(`Negative Safety Rating impact (${srImpact.toFixed(2)} SR)`);
-  }
-
-  if (positionDrop >= 5 && classGridPosition) {
-    reasons.push(`Lost ${positionDrop} positions (Started P${classGridPosition} → Finished P${classPosition})`);
-  }
-
-  if (penaltiesCount > 0) {
-    reasons.push(`${penaltiesCount} in-race penalty`);
-  }
-
-  if (totalSeverity > 10000) {
-    reasons.push(`High collision force (${Math.round(totalSeverity).toLocaleString()} energy)`);
+  let positionDrop = 0;
+  if (typeof classGridPosition === 'number' && classGridPosition > 0) {
+    positionDrop = Math.max(0, classPosition - classGridPosition);
   }
 
   return {
@@ -163,11 +127,14 @@ export function computeRaceJokerImpact(params: JokerImpactParams): RaceJokerEval
     tier,
     tierLabel,
     recommendation,
-    rrPointsProtected: Math.round(rrPointsProtected),
-    srProtected: Number(srProtected.toFixed(2)),
+    rrPointsProtected: rrLoss,
+    srProtected: Number(srLoss.toFixed(2)),
     dnfProtected: isDnf,
     positionDrop,
     reasons,
+    rrScore,
+    srScore,
+    strategy,
   };
 }
 
@@ -178,7 +145,7 @@ export function computeRaceJokerImpact(params: JokerImpactParams): RaceJokerEval
  * - 3rd Joker: Earned at 60 races (+30 races)
  * - Maximum capacity: 3 Jokers
  */
-export function getJokerProgression(totalRaces: number): JokerProgression {
+export function getJokerProgression(totalRaces: number, consumedCount: number = 0): JokerProgression {
   const maxJokers = 3;
   let jokersEarned = 0;
   let racesToNextJoker = 0;
@@ -207,14 +174,32 @@ export function getJokerProgression(totalRaces: number): JokerProgression {
     progressPct = 100;
   }
 
+  const jokersConsumed = Math.max(0, consumedCount);
+  const jokersAvailable = Math.max(0, jokersEarned - jokersConsumed);
+
   return {
     totalRaces,
     jokersEarned,
+    jokersConsumed,
+    jokersAvailable,
     maxJokers,
     racesToNextJoker,
     nextThreshold,
     progressPct: Math.min(100, Math.max(0, progressPct)),
   };
+}
+
+/**
+ * Returns candidate race keys sorted by highest recovery value (Score >= 50)
+ */
+export function getOptimalJokerCandidates<T extends { raceKey: string; jokerImpact?: RaceJokerEvaluation }>(
+  races: T[],
+  limit: number = 3
+): T[] {
+  return [...races]
+    .filter(r => (r.jokerImpact?.score ?? 0) >= 40)
+    .sort((a, b) => (b.jokerImpact?.score ?? 0) - (a.jokerImpact?.score ?? 0))
+    .slice(0, limit);
 }
 
 /**
